@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QuantCure - Molecular Docking Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts-stat/dist/ecStat.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    @font-face {
+      font-family: 'Argent CF';
+      src: url('https://public.readdy.ai/fonts/ArgentCF-Regular.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Greycliff CF';
+      src: url('https://public.readdy.ai/fonts/GreycliffCF-Regular.woff2') format('woff2');
+    }
+    .font-argent { font-family: 'Argent CF', serif; }
+    .font-greycliff { font-family: 'Greycliff CF', sans-serif; }
+    /* Custom scrollbar for better aesthetics in dark mode */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #1a1a1a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #4a5568;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #718096;
+    }
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+      animation: fade-in 0.3s ease-out forwards;
+    }
+    /* New styles for HUD login card */
+    @keyframes draw-h { from { width: 0; } to { width: 40px; } }
+    @keyframes draw-v { from { height: 0; } to { height: 40px; } }
+
+    .hud-corner::before, .hud-corner::after {
+      content: '';
+      position: absolute;
+      background-color: #06b6d4; /* cyan-500 */
+      box-shadow: 0 0 5px #06b6d4, 0 0 8px #06b6d4;
+      animation-duration: 0.4s;
+      animation-timing-function: ease-out;
+      animation-fill-mode: forwards;
+    }
+
+    /* Top-left */
+    .hud-corner-tl::before { top: 0; left: 0; height: 2px; animation-name: draw-h; }
+    .hud-corner-tl::after  { top: 0; left: 0; width: 2px; animation-name: draw-v; animation-delay: 0.2s; }
+
+    /* Top-right */
+    .hud-corner-tr::before { top: 0; right: 0; height: 2px; animation-name: draw-h; }
+    .hud-corner-tr::after  { top: 0; right: 0; width: 2px; animation-name: draw-v; animation-delay: 0.2s; }
+
+    /* Bottom-left */
+    .hud-corner-bl::before { bottom: 0; left: 0; height: 2px; animation-name: draw-h; }
+    .hud-corner-bl::after  { bottom: 0; left: 0; width: 2px; animation-name: draw-v; animation-delay: 0.2s; }
+
+    /* Bottom-right */
+    .hud-corner-br::before { bottom: 0; right: 0; height: 2px; animation-name: draw-h; }
+    .hud-corner-br::after  { bottom: 0; right: 0; width: 2px; animation-name: draw-v; animation-delay: 0.2s; }
+
+    .login-btn-glow:hover {
+        box-shadow: 0 0 15px rgba(74, 222, 222, 0.6);
+    }
+    
+    /* New loader styles */
+    @keyframes loading-bar {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+    .loader-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(to right, transparent, #06b6d4, #06b6d4, transparent);
+      animation: loading-bar 1.5s infinite ease-in-out;
+    }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#1a1a1a',
+            secondary: '#4a5568'
+          },
+          borderRadius: {
+            'none': '0px',
+            'sm': '8px',
+            DEFAULT: '12px',
+            'md': '16px',
+            'lg': '20px',
+            'xl': '24px',
+            '2xl': '28px',
+            '3xl': '32px',
+            'full': '9999px',
+            'button': '12px'
+          }
+        }
+      }
+    }
+  </script>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "echarts": "https://esm.sh/echarts@^5.6.0",
+    "path": "https://esm.sh/path@^0.12.7",
+    "vite": "https://esm.sh/vite@^7.0.5",
+    "url": "https://esm.sh/url@^0.11.4"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-black text-white min-h-screen">
+  <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
