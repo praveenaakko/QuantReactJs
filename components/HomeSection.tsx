@@ -1,11 +1,12 @@
 
 import React, { useMemo, useEffect, useState } from 'react';
-import { UserRole as UserRoleEnum, SavedModel, DockingRun, User, UserStatus, UserRole, DockingStatus, TrainingRun, TrainingStatus, PredictionRun, PredictionStatus } from '../types';
+import { UserRole as UserRoleEnum, SavedModel, DockingRun, User, UserStatus, UserRole, DockingStatus, TrainingRun, TrainingStatus, PredictionRun, PredictionStatus, CompoundGenRun, SynthesisReport, View } from '../types';
 import { EChartComponent } from './EChartComponent';
 import type { EChartsOption } from 'echarts';
 import { UserManagementSection } from './UserManagementSection';
 import { useStore } from '../store/store';
 import api from '../config/api';
+import { normalizeUserPhoto } from '../utils/userPhoto';
 
 interface DashboardSummary {
   proteinCount: number;
@@ -103,7 +104,7 @@ const mapApiUserToUser = (apiUser: any): User => ({
   id: String(apiUser.id),
   name: apiUser.name,
   email: apiUser.email,
-  photoUrl: `/${String(apiUser.photo).replace(/\\/g, '/').replace('app/', '')}`,
+  photoUrl: normalizeUserPhoto(apiUser.photo ?? apiUser.photoUrl),
   status: apiUser.status as UserStatus,
   role: apiUser.role as UserRole,
   additionalInfo: apiUser.additionalInfo || '',
@@ -120,10 +121,29 @@ const mapApiSavedModelToSavedModel = (apiModel: any): SavedModel => ({
     buildTime: apiModel.build_time,
 });
 
+const mapApiCompoundGenRunToCompoundGenRun = (apiRun: any): CompoundGenRun => ({
+    id: String(apiRun.id),
+    title: apiRun.title || apiRun.project_name || `Run ${apiRun.id}`,
+    seeds: Number(apiRun.seeds ?? apiRun.seed_count ?? 0),
+    outputSize: Number(apiRun.outputSize ?? apiRun.output_size ?? apiRun.volume ?? 0),
+    generatedOn: apiRun.generatedOn || apiRun.generated_on || apiRun.created_at || new Date().toISOString(),
+    status: (apiRun.status || 'processing') as CompoundGenRun['status'],
+});
+
+const mapApiSynthesisReportToSynthesisReport = (apiReport: any): SynthesisReport => ({
+    id: String(apiReport.id),
+    projectName: apiReport.projectName || apiReport.project_name || apiReport.title || `Report ${apiReport.id}`,
+    targetMolecule: apiReport.targetMolecule || apiReport.target_molecule || '',
+    generatedOn: apiReport.generatedOn || apiReport.generated_on || apiReport.created_at || new Date().toISOString(),
+    routes: Number(apiReport.routes ?? apiReport.route_count ?? 0),
+    status: (apiReport.status || 'processing') as SynthesisReport['status'],
+});
+
 export const HomeSection: React.FC = () => {
   const { state, dispatch } = useStore();
-  const { savedModels, dockingRuns, trainingRuns, predictionRuns, currentUser, users } = state;
+  const { savedModels, dockingRuns, trainingRuns, predictionRuns, compoundGenRuns, synthesisReports, currentUser } = state;
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const switchView = (view: View) => dispatch({ type: 'SET_VIEW', payload: view });
   
   useEffect(() => {
     const fetchData = async () => {
@@ -136,6 +156,8 @@ export const HomeSection: React.FC = () => {
                 api.get('/docking/runs?limit=5'),
                 api.get('/ml/training/runs?limit=5'),
                 api.get('/ml/predictions?limit=5'),
+                api.get('/compounds/runs'),
+                api.get('/synthesis/reports'),
             ];
 
             if (currentUser?.role === 'admin') {
@@ -148,6 +170,8 @@ export const HomeSection: React.FC = () => {
                 dockingRunsData,
                 trainingRunsData,
                 predictionRunsData,
+                compoundRunsData,
+                synthesisReportsData,
                 usersDataResponse
             ] = await Promise.all(promises);
             
@@ -156,6 +180,8 @@ export const HomeSection: React.FC = () => {
             dispatch({ type: 'SET_DOCKING_RUNS', payload: (dockingRunsData || []).map((r: any) => mapApiDockingRunToDockingRun(r, currentUser)) });
             dispatch({ type: 'SET_TRAINING_RUNS', payload: (trainingRunsData || []).map((r: any) => mapApiTrainingRunToTrainingRun(r, currentUser)) });
             dispatch({ type: 'SET_PREDICTION_RUNS', payload: (predictionRunsData || []).map((r: any) => mapApiPredictionRunToPredictionRun(r, currentUser)) });
+            dispatch({ type: 'SET_COMPOUND_GEN_RUNS', payload: (compoundRunsData || []).map(mapApiCompoundGenRunToCompoundGenRun) });
+            dispatch({ type: 'SET_SYNTHESIS_REPORTS', payload: (synthesisReportsData || []).map(mapApiSynthesisReportToSynthesisReport) });
 
             if (usersDataResponse && usersDataResponse.users) {
                 dispatch({ type: 'SET_USERS', payload: (usersDataResponse.users || []).map(mapApiUserToUser) });
@@ -174,6 +200,8 @@ export const HomeSection: React.FC = () => {
   const recentDockingRuns = useMemo(() => dockingRuns.slice(0, 5), [dockingRuns]);
   const recentTrainingRuns = useMemo(() => trainingRuns.slice(0, 5), [trainingRuns]);
   const recentPredictionRuns = useMemo(() => predictionRuns.slice(0, 5), [predictionRuns]);
+  const recentCompoundRuns = useMemo(() => compoundGenRuns.slice(0, 5), [compoundGenRuns]);
+  const recentSynthesisReports = useMemo(() => synthesisReports.slice(0, 5), [synthesisReports]);
 
   // Calculate Chart Data for Model Build Times
   const buildTimeChartOption = useMemo<EChartsOption>(() => {
@@ -255,7 +283,7 @@ export const HomeSection: React.FC = () => {
 
             {/* Stats Grid */}
             {summary && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-12">
                     {/* Row 1 */}
                     <NewStatCard 
                         icon="ri-flask-line" 
@@ -303,8 +331,38 @@ export const HomeSection: React.FC = () => {
                         iconColor="text-cyan-400"
                         bgColor="bg-cyan-500/20" 
                     />
+                    <NewStatCard 
+                        icon="ri-database-2-line" 
+                        label="Compound Pipelines" 
+                        value={compoundGenRuns.length}
+                        subtext={`${compoundGenRuns.filter(r => r.status === 'success').length} completed`}
+                        iconColor="text-indigo-400"
+                        bgColor="bg-indigo-500/20" 
+                    />
+                    <NewStatCard 
+                        icon="ri-git-branch-line" 
+                        label="Synthesis Reports" 
+                        value={synthesisReports.length}
+                        subtext={`${synthesisReports.reduce((acc, r) => acc + (r.routes || 0), 0)} total routes`}
+                        iconColor="text-orange-400"
+                        bgColor="bg-orange-500/20" 
+                    />
                 </div>
             )}
+
+            <div className="mb-12 bg-gradient-to-r from-blue-500/10 via-cyan-500/5 to-emerald-500/10 border border-white/10 rounded-2xl p-6 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-greycliff font-bold">Pipeline Shortcuts</p>
+                    <h3 className="text-2xl font-argent text-white mt-1">Jump directly to active workflows</h3>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <button onClick={() => switchView('compound-gen')} className="px-4 py-2 rounded-lg border border-blue-400/30 text-blue-300 hover:bg-blue-500/10 font-greycliff text-xs uppercase tracking-wider">Compound Gen</button>
+                    <button onClick={() => switchView('synthesis-route')} className="px-4 py-2 rounded-lg border border-orange-400/30 text-orange-300 hover:bg-orange-500/10 font-greycliff text-xs uppercase tracking-wider">Synthesis Route</button>
+                    <button onClick={() => switchView('docker')} className="px-4 py-2 rounded-lg border border-green-400/30 text-green-300 hover:bg-green-500/10 font-greycliff text-xs uppercase tracking-wider">Docking</button>
+                    <button onClick={() => switchView('ml-builder')} className="px-4 py-2 rounded-lg border border-violet-400/30 text-violet-300 hover:bg-violet-500/10 font-greycliff text-xs uppercase tracking-wider">ML Builder</button>
+                    <button onClick={() => switchView('ml-predictor')} className="px-4 py-2 rounded-lg border border-cyan-400/30 text-cyan-300 hover:bg-cyan-500/10 font-greycliff text-xs uppercase tracking-wider">ML Predictor</button>
+                </div>
+            </div>
             
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-1 gap-8 mb-12">
@@ -320,7 +378,7 @@ export const HomeSection: React.FC = () => {
             </div>
 
             {/* Recent Activity Tables */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-8">
                 {/* Recent Docking Runs */}
                 <div className="lg:col-span-1 bg-[#111318] p-6 rounded-2xl border border-white/5 backdrop-blur-sm shadow-lg shadow-black/20">
                     <h3 className="font-argent text-xl mb-4 text-white">Recent Docking Runs</h3>
@@ -356,7 +414,7 @@ export const HomeSection: React.FC = () => {
                 </div>
 
                 {/* Recent Prediction Runs */}
-                <div className="lg:col-span-1 bg-[#111318] p-6 rounded-2xl border border-white/5 backdrop-blur-sm shadow-lg shadow-black/20">
+                <div className="bg-[#111318] p-6 rounded-2xl border border-white/5 backdrop-blur-sm shadow-lg shadow-black/20">
                     <h3 className="font-argent text-xl mb-4 text-white">Recent Prediction Runs</h3>
                      <ul className="space-y-3">
                         {recentPredictionRuns.map(run => (
@@ -369,6 +427,40 @@ export const HomeSection: React.FC = () => {
                             </li>
                         ))}
                         {recentPredictionRuns.length === 0 && <p className="text-white/30 text-center py-8 font-greycliff italic">No recent prediction runs.</p>}
+                    </ul>
+                </div>
+
+                {/* Recent Compound Generation Runs */}
+                <div className="bg-[#111318] p-6 rounded-2xl border border-white/5 backdrop-blur-sm shadow-lg shadow-black/20">
+                    <h3 className="font-argent text-xl mb-4 text-white">Recent Compound Gen</h3>
+                    <ul className="space-y-3">
+                        {recentCompoundRuns.map(run => (
+                            <li key={run.id} className="flex justify-between items-center font-greycliff text-sm p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
+                                <div>
+                                    <p className="text-white font-medium">{run.title}</p>
+                                    <p className="text-white/40 text-xs">{run.outputSize} outputs</p>
+                                </div>
+                                <StatusBadge status={run.status} />
+                            </li>
+                        ))}
+                        {recentCompoundRuns.length === 0 && <p className="text-white/30 text-center py-8 font-greycliff italic">No recent compound runs.</p>}
+                    </ul>
+                </div>
+
+                {/* Recent Synthesis Reports */}
+                <div className="bg-[#111318] p-6 rounded-2xl border border-white/5 backdrop-blur-sm shadow-lg shadow-black/20">
+                    <h3 className="font-argent text-xl mb-4 text-white">Recent Synthesis Reports</h3>
+                    <ul className="space-y-3">
+                        {recentSynthesisReports.map(report => (
+                            <li key={report.id} className="flex justify-between items-center font-greycliff text-sm p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
+                                <div>
+                                    <p className="text-white font-medium">{report.projectName}</p>
+                                    <p className="text-white/40 text-xs">{report.routes} routes</p>
+                                </div>
+                                <StatusBadge status={report.status} />
+                            </li>
+                        ))}
+                        {recentSynthesisReports.length === 0 && <p className="text-white/30 text-center py-8 font-greycliff italic">No recent synthesis reports.</p>}
                     </ul>
                 </div>
             </div>

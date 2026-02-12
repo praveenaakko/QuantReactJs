@@ -1,7 +1,8 @@
+
 import React, { createContext, useReducer, useContext, Dispatch } from 'react';
 import type {
   User, Protein, Ligand, SavedModel, DockingRun, NotificationMessage, View, UserRole, LigandGroup,
-  TrainingRun, PredictionRun
+  TrainingRun, PredictionRun, CompoundGenRun, SynthesisReport
 } from '../types';
 import { NotificationType, UserStatus } from '../types';
 
@@ -12,6 +13,7 @@ export interface AppState {
   notifications: NotificationMessage[];
   isProfileModalOpen: boolean;
   isCreateUserModalOpen: boolean;
+  isChatOpen: boolean;
   proteins: Protein[];
   ligands: Ligand[];
   ligandGroups: LigandGroup[];
@@ -19,6 +21,8 @@ export interface AppState {
   dockingRuns: DockingRun[];
   trainingRuns: TrainingRun[];
   predictionRuns: PredictionRun[];
+  compoundGenRuns: CompoundGenRun[];
+  synthesisReports: SynthesisReport[];
   users: User[];
   selectedProtein: Protein | null;
   selectedLigands: Ligand[];
@@ -34,11 +38,13 @@ export type Action =
   | { type: 'CLOSE_PROFILE_MODAL' }
   | { type: 'OPEN_CREATE_USER_MODAL' }
   | { type: 'CLOSE_CREATE_USER_MODAL' }
+  | { type: 'TOGGLE_CHAT' }
   | { type: 'ADD_NOTIFICATION'; payload: NotificationMessage }
   | { type: 'REMOVE_NOTIFICATION'; payload: number }
   | { type: 'CREATE_USER'; payload: User }
   | { type: 'VERIFY_USER'; payload: string }
   | { type: 'CHANGE_USER_ROLE'; payload: { userId: string; role: UserRole } }
+  | { type: 'DELETE_USER'; payload: string }
   | { type: 'ADD_PROTEIN'; payload: Protein }
   | { type: 'SET_PROTEINS'; payload: Protein[] }
   | { type: 'SET_SELECTED_PROTEIN'; payload: Protein | null }
@@ -56,7 +62,11 @@ export type Action =
   | { type: 'SET_TRAINING_RUNS', payload: TrainingRun[] }
   | { type: 'ADD_TRAINING_RUN', payload: TrainingRun }
   | { type: 'SET_PREDICTION_RUNS', payload: PredictionRun[] }
-  | { type: 'ADD_PREDICTION_RUN', payload: PredictionRun };
+  | { type: 'ADD_PREDICTION_RUN', payload: PredictionRun }
+  | { type: 'SET_COMPOUND_GEN_RUNS'; payload: CompoundGenRun[] }
+  | { type: 'DELETE_COMPOUND_GEN_RUN'; payload: string }
+  | { type: 'SET_SYNTHESIS_REPORTS'; payload: SynthesisReport[] }
+  | { type: 'DELETE_SYNTHESIS_REPORT'; payload: string };
 
 
 // 3. Initial State
@@ -66,6 +76,7 @@ const initialState: AppState = {
   notifications: [],
   isProfileModalOpen: false,
   isCreateUserModalOpen: false,
+  isChatOpen: false,
   proteins: [],
   ligands: [],
   ligandGroups: [],
@@ -73,6 +84,8 @@ const initialState: AppState = {
   dockingRuns: [],
   trainingRuns: [],
   predictionRuns: [],
+  compoundGenRuns: [],
+  synthesisReports: [],
   users: [],
   selectedProtein: null,
   selectedLigands: [],
@@ -98,6 +111,8 @@ const appReducer = (state: AppState, action: Action): AppState => {
       return { ...state, isCreateUserModalOpen: true };
     case 'CLOSE_CREATE_USER_MODAL':
       return { ...state, isCreateUserModalOpen: false };
+    case 'TOGGLE_CHAT':
+      return { ...state, isChatOpen: !state.isChatOpen };
     case 'ADD_NOTIFICATION':
       return { ...state, notifications: [...state.notifications, action.payload] };
     case 'REMOVE_NOTIFICATION':
@@ -117,6 +132,11 @@ const appReducer = (state: AppState, action: Action): AppState => {
         users: state.users.map(user =>
           user.id === action.payload.userId ? { ...user, role: action.payload.role } : user
         ),
+      };
+    case 'DELETE_USER':
+      return {
+        ...state,
+        users: state.users.filter(user => user.id !== action.payload)
       };
     case 'ADD_PROTEIN':
       return {
@@ -183,6 +203,14 @@ const appReducer = (state: AppState, action: Action): AppState => {
         return { ...state, predictionRuns: action.payload };
     case 'ADD_PREDICTION_RUN':
         return { ...state, predictionRuns: [action.payload, ...state.predictionRuns] };
+    case 'SET_COMPOUND_GEN_RUNS':
+        return { ...state, compoundGenRuns: action.payload };
+    case 'DELETE_COMPOUND_GEN_RUN':
+        return { ...state, compoundGenRuns: state.compoundGenRuns.filter(r => r.id !== action.payload) };
+    case 'SET_SYNTHESIS_REPORTS':
+        return { ...state, synthesisReports: action.payload };
+    case 'DELETE_SYNTHESIS_REPORT':
+        return { ...state, synthesisReports: state.synthesisReports.filter(r => r.id !== action.payload) };
     default:
       return state;
   }

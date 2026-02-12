@@ -47,6 +47,19 @@ interface ModelInfo {
     activityRange: number | null;
 }
 
+const formatDate12h = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+};
+
 const mapApiTrainingRunToTrainingRun = (apiRun: any, currentUser: any): TrainingRun => {
     // Normalize taskType to be capitalized to match the component's expected values.
     const taskType = apiRun.taskType?.toLowerCase() === 'classification' 
@@ -58,7 +71,7 @@ const mapApiTrainingRunToTrainingRun = (apiRun: any, currentUser: any): Training
         name: apiRun.name,
         datasetName: apiRun.datasetName,
         taskType: taskType,
-        createdAt: new Date(apiRun.createdAt).toLocaleString(),
+        createdAt: formatDate12h(apiRun.createdAt),
         createdBy: apiRun.createdBy || currentUser?.name || 'Unknown',
         status: apiRun.status as TrainingStatus,
         duration: apiRun.duration,
@@ -73,7 +86,7 @@ const mapApiSavedModelToSavedModel = (apiModel: any): SavedModel => ({
     description: apiModel.description,
     performance: apiModel.performance,
     taskType: apiModel.task_type === 'prediction' ? 'Prediction' : 'Classification',
-    date: new Date(apiModel.date).toLocaleDateString(),
+    date: formatDate12h(apiModel.date),
     buildTime: apiModel.build_time,
 });
 
@@ -117,6 +130,19 @@ const DashboardStatCard: React.FC<{ icon: string; label: string; value: string |
   </div>
 );
 
+// Sorting Config Interface
+interface SortConfig<T> {
+    key: keyof T | null;
+    direction: 'asc' | 'desc';
+}
+
+const SortIndicator = ({ active, direction }: { active: boolean, direction: 'asc' | 'desc' }) => {
+    if (!active) return <i className="ri-expand-up-down-line ml-1 opacity-20"></i>;
+    return direction === 'asc' 
+        ? <i className="ri-arrow-up-s-line ml-1 text-cyan-400"></i> 
+        : <i className="ri-arrow-down-s-line ml-1 text-cyan-400"></i>;
+};
+
 export const MLBuilderSection: React.FC<MLBuilderSectionProps> = ({ addNotification }) => {
     const { state, dispatch } = useStore();
     const { currentUser } = state;
@@ -133,6 +159,7 @@ export const MLBuilderSection: React.FC<MLBuilderSectionProps> = ({ addNotificat
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [runToDelete, setRunToDelete] = useState<TrainingRun | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [runsSort, setRunsSort] = useState<SortConfig<TrainingRun>>({ key: 'createdAt', direction: 'desc' });
 
     // Create view state
     const [histogramOption, setHistogramOption] = useState<EChartsOption | null>(null);
@@ -158,6 +185,8 @@ export const MLBuilderSection: React.FC<MLBuilderSectionProps> = ({ addNotificat
     const [predsCurrentPage, setPredsCurrentPage] = useState(1);
     const [predsItemsPerPage, setPredsItemsPerPage] = useState(10);
     const [isEcStatLoaded, setIsEcStatLoaded] = useState(typeof ecStat !== 'undefined');
+    const [resultsSort, setResultsSort] = useState<SortConfig<AlgorithmResult>>({ key: 'algorithm', direction: 'asc' });
+    const [predsSort, setPredsSort] = useState<SortConfig<PredictionPoint>>({ key: 'smiles', direction: 'asc' });
 
      useEffect(() => {
         if (isEcStatLoaded) return;
@@ -177,8 +206,7 @@ export const MLBuilderSection: React.FC<MLBuilderSectionProps> = ({ addNotificat
             try {
                 const runsData = await api.get('/ml/training/runs');
                 const mappedRuns = (Array.isArray(runsData) ? runsData : [])
-                    .map(run => mapApiTrainingRunToTrainingRun(run, currentUser))
-                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                    .map(run => mapApiTrainingRunToTrainingRun(run, currentUser));
                 setTrainingRuns(mappedRuns);
             } catch (error) {
                 addNotification(error instanceof Error ? error.message : 'Failed to fetch training runs.', NotificationType.ERROR);
@@ -190,6 +218,29 @@ export const MLBuilderSection: React.FC<MLBuilderSectionProps> = ({ addNotificat
             fetchRuns();
         }
     }, [view, dispatch, addNotification, currentUser]);
+
+    // Sorting Helper
+    const sortData = <T,>(data: T[], config: SortConfig<T>) => {
+        if (!config.key) return data;
+        return [...data].sort((a, b) => {
+            const valA = a[config.key!];
+            const valB = b[config.key!];
+            if (valA === valB) return 0;
+            if (valA === null || valA === undefined) return 1;
+            if (valB === null || valB === undefined) return -1;
+
+            const comparison = valA < valB ? -1 : 1;
+            return config.direction === 'asc' ? comparison : -comparison;
+        });
+    };
+
+    const toggleSort = <T,>(config: SortConfig<T>, setConfig: React.Dispatch<React.SetStateAction<SortConfig<T>>>, key: keyof T) => {
+        if (config.key === key) {
+            setConfig({ key, direction: config.direction === 'asc' ? 'desc' : 'asc' });
+        } else {
+            setConfig({ key, direction: 'asc' });
+        }
+    };
 
     // Derived state for list view
     const dashboardStats = useMemo(() => {
@@ -203,12 +254,13 @@ export const MLBuilderSection: React.FC<MLBuilderSectionProps> = ({ addNotificat
     }, [trainingRuns]);
 
     const filteredRuns = useMemo(() => {
-        return trainingRuns.filter(run => {
+        const filtered = trainingRuns.filter(run => {
             const matchesSearch = run.name.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesStatus = statusFilter === 'all' || run.status === statusFilter;
             return matchesSearch && matchesStatus;
         });
-    }, [trainingRuns, searchTerm, statusFilter]);
+        return sortData(filtered, runsSort);
+    }, [trainingRuns, searchTerm, statusFilter, runsSort]);
 
     useEffect(() => { setRunsCurrentPage(1); }, [searchTerm, statusFilter, runsItemsPerPage]);
     
@@ -369,6 +421,18 @@ export const MLBuilderSection: React.FC<MLBuilderSectionProps> = ({ addNotificat
         setHistogramOption(null);
     };
 
+    const handleDownloadSampleCsv = () => {
+        const csvContent = "smiles,pIC50\nCN1C=NC2=C1C(=O)N(C(=O)N2C)C,7.5\nCC(=O)OC1=CC=CC=C1C(=O)O,5.2\nCC(=O)NC1=CC=C(C=C1)O,4.8\nCC(C)CC1=CC=C(C=C1)C(C)C(=O)O,6.1";
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", "training_sample.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const handleStartTraining = async () => {
         if (!datasetId) {
             addNotification('Dataset not processed correctly. Please re-upload.', NotificationType.ERROR);
@@ -392,7 +456,7 @@ export const MLBuilderSection: React.FC<MLBuilderSectionProps> = ({ addNotificat
             const newRun = mapApiTrainingRunToTrainingRun(newApiRun, currentUser);
 
             addNotification(`Training initialized for "${newRun.name}".`, NotificationType.SUCCESS);
-            setTrainingRuns(prev => [newRun, ...prev].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+            setTrainingRuns(prev => [newRun, ...prev]);
 
             setView('list');
             // Reset create view state
@@ -455,10 +519,13 @@ export const MLBuilderSection: React.FC<MLBuilderSectionProps> = ({ addNotificat
         setPredictionPoints(newPredictions);
     }, [selectedAlgorithm, allPredictions]);
     
-    const predsTotalPages = Math.ceil(predictionPoints.length / predsItemsPerPage);
+    const sortedAlgorithmResults = useMemo(() => sortData(algorithmResults, resultsSort), [algorithmResults, resultsSort]);
+    
+    const sortedPredictions = useMemo(() => sortData(predictionPoints, predsSort), [predictionPoints, predsSort]);
+    const predsTotalPages = Math.ceil(sortedPredictions.length / predsItemsPerPage);
     const paginatedPredictionResults = useMemo(() =>
-        predictionPoints.slice((predsCurrentPage - 1) * predsItemsPerPage, predsCurrentPage * predsItemsPerPage),
-        [predictionPoints, predsCurrentPage, predsItemsPerPage]
+        sortedPredictions.slice((predsCurrentPage - 1) * predsItemsPerPage, predsCurrentPage * predsItemsPerPage),
+        [sortedPredictions, predsCurrentPage, predsItemsPerPage]
     );
 
     const scatterPlotOption: EChartsOption = useMemo(() => {
@@ -608,11 +675,22 @@ export const MLBuilderSection: React.FC<MLBuilderSectionProps> = ({ addNotificat
                                         <label className="text-sm font-greycliff text-white/70">DATASET</label>
                                     </div>
                                     {!uploadedFile ? (
-                                        <div className="relative border-2 border-white/10 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-center group hover:border-cyan-400/50 transition-colors">
-                                            <i className="ri-upload-cloud-2-line text-3xl text-white/50 mb-2 group-hover:text-cyan-400 transition-colors"></i>
-                                            <span className="font-greycliff text-sm text-white/80">Upload CSV</span>
-                                            <input type="file" accept=".csv" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={handleFileChange} />
-                                        </div>
+                                        <>
+                                            <div className="relative border-2 border-white/10 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-center group hover:border-cyan-400/50 transition-colors">
+                                                <i className="ri-upload-cloud-2-line text-3xl text-white/50 mb-2 group-hover:text-cyan-400 transition-colors"></i>
+                                                <span className="font-greycliff text-sm text-white/80">Upload CSV</span>
+                                                <input type="file" accept=".csv" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={handleFileChange} />
+                                            </div>
+                                            <div className="flex justify-center mt-2">
+                                                <button 
+                                                    onClick={handleDownloadSampleCsv} 
+                                                    className="text-[10px] font-bold uppercase tracking-widest text-cyan-400 hover:text-cyan-300 transition-colors flex items-center gap-1"
+                                                >
+                                                    <i className="ri-download-line text-xs"></i>
+                                                    Download Training Sample
+                                                </button>
+                                            </div>
+                                        </>
                                     ) : (
                                         <div className="bg-gray-800 rounded-lg p-3 flex items-center justify-between animate-fade-in">
                                             <div className="flex items-center gap-3 overflow-hidden">
@@ -698,16 +776,26 @@ export const MLBuilderSection: React.FC<MLBuilderSectionProps> = ({ addNotificat
                                         <>
                                             <thead className="bg-gray-800 sticky top-0 z-10">
                                                 <tr>
-                                                    <th className="p-3 font-greycliff w-[30%]">Algorithm</th>
-                                                    <th className="p-3 font-greycliff text-right">R²</th>
-                                                    <th className="p-3 font-greycliff text-right">MSE</th>
-                                                    <th className="p-3 font-greycliff text-right">MAE</th>
-                                                    <th className="p-3 font-greycliff text-right">RMSE</th>
+                                                    <th className="p-3 font-greycliff w-[30%] cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(resultsSort, setResultsSort, 'algorithm')}>
+                                                        Algorithm <SortIndicator active={resultsSort.key === 'algorithm'} direction={resultsSort.direction} />
+                                                    </th>
+                                                    <th className="p-3 font-greycliff text-right cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(resultsSort, setResultsSort, 'r2')}>
+                                                        R² <SortIndicator active={resultsSort.key === 'r2'} direction={resultsSort.direction} />
+                                                    </th>
+                                                    <th className="p-3 font-greycliff text-right cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(resultsSort, setResultsSort, 'mse')}>
+                                                        MSE <SortIndicator active={resultsSort.key === 'mse'} direction={resultsSort.direction} />
+                                                    </th>
+                                                    <th className="p-3 font-greycliff text-right cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(resultsSort, setResultsSort, 'mae')}>
+                                                        MAE <SortIndicator active={resultsSort.key === 'mae'} direction={resultsSort.direction} />
+                                                    </th>
+                                                    <th className="p-3 font-greycliff text-right cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(resultsSort, setResultsSort, 'rmse')}>
+                                                        RMSE <SortIndicator active={resultsSort.key === 'rmse'} direction={resultsSort.direction} />
+                                                    </th>
                                                     <th className="p-3 font-greycliff text-center">Save</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {algorithmResults.map(result => (
+                                                {sortedAlgorithmResults.map(result => (
                                                     <tr key={result.id} className={`border-b border-white/10 hover:bg-white/20 cursor-pointer ${selectedAlgorithm?.id === result.id ? 'bg-white/15' : ''}`} onClick={() => setSelectedAlgorithm(result)}>
                                                         <td className="p-3 font-greycliff text-white">{result.algorithm}</td>
                                                         <td className="p-3 font-greycliff text-right">{result.r2?.toFixed(2) ?? 'N/A'}</td>
@@ -725,17 +813,29 @@ export const MLBuilderSection: React.FC<MLBuilderSectionProps> = ({ addNotificat
                                         <>
                                             <thead className="bg-gray-800 sticky top-0 z-10">
                                                 <tr>
-                                                    <th className="p-3 font-greycliff w-[25%]">Algorithm</th>
-                                                    <th className="p-3 font-greycliff text-right">Accuracy</th>
-                                                    <th className="p-3 font-greycliff text-right">Precision</th>
-                                                    <th className="p-3 font-greycliff text-right">Recall</th>
-                                                    <th className="p-3 font-greycliff text-right">F1 Score</th>
-                                                    <th className="p-3 font-greycliff text-right">ROC AUC</th>
+                                                    <th className="p-3 font-greycliff w-[25%] cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(resultsSort, setResultsSort, 'algorithm')}>
+                                                        Algorithm <SortIndicator active={resultsSort.key === 'algorithm'} direction={resultsSort.direction} />
+                                                    </th>
+                                                    <th className="p-3 font-greycliff text-right cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(resultsSort, setResultsSort, 'accuracy')}>
+                                                        Accuracy <SortIndicator active={resultsSort.key === 'accuracy'} direction={resultsSort.direction} />
+                                                    </th>
+                                                    <th className="p-3 font-greycliff text-right cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(resultsSort, setResultsSort, 'precision')}>
+                                                        Precision <SortIndicator active={resultsSort.key === 'precision'} direction={resultsSort.direction} />
+                                                    </th>
+                                                    <th className="p-3 font-greycliff text-right cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(resultsSort, setResultsSort, 'recall')}>
+                                                        Recall <SortIndicator active={resultsSort.key === 'recall'} direction={resultsSort.direction} />
+                                                    </th>
+                                                    <th className="p-3 font-greycliff text-right cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(resultsSort, setResultsSort, 'f1_score')}>
+                                                        F1 <SortIndicator active={resultsSort.key === 'f1_score'} direction={resultsSort.direction} />
+                                                    </th>
+                                                    <th className="p-3 font-greycliff text-right cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(resultsSort, setResultsSort, 'roc_auc')}>
+                                                        AUC <SortIndicator active={resultsSort.key === 'roc_auc'} direction={resultsSort.direction} />
+                                                    </th>
                                                     <th className="p-3 font-greycliff text-center">Save</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {algorithmResults.map(result => (
+                                                {sortedAlgorithmResults.map(result => (
                                                     <tr key={result.id} className={`border-b border-white/10 hover:bg-white/20 cursor-pointer ${selectedAlgorithm?.id === result.id ? 'bg-white/15' : ''}`} onClick={() => setSelectedAlgorithm(result)}>
                                                         <td className="p-3 font-greycliff text-white">{result.algorithm}</td>
                                                         <td className="p-3 font-greycliff text-right">{result.accuracy?.toFixed(2) ?? 'N/A'}</td>
@@ -779,9 +879,15 @@ export const MLBuilderSection: React.FC<MLBuilderSectionProps> = ({ addNotificat
                              <table className="w-full text-sm text-left table-fixed">
                                  <thead className="bg-gray-800 sticky top-0 z-10">
                                      <tr>
-                                         <th className="p-3 font-greycliff w-[50%]">SMILES</th>
-                                         <th className="p-3 font-greycliff text-right">Actual</th>
-                                         <th className="p-3 font-greycliff text-right">{selectedRunDetails.taskType === 'Classification' ? 'Predicted Class' : 'Predicted'}</th>
+                                         <th className="p-3 font-greycliff w-[50%] cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(predsSort, setPredsSort, 'smiles')}>
+                                            SMILES <SortIndicator active={predsSort.key === 'smiles'} direction={predsSort.direction} />
+                                         </th>
+                                         <th className="p-3 font-greycliff text-right cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(predsSort, setPredsSort, 'actual')}>
+                                            Actual <SortIndicator active={predsSort.key === 'actual'} direction={predsSort.direction} />
+                                         </th>
+                                         <th className="p-3 font-greycliff text-right cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(predsSort, setPredsSort, 'predicted')}>
+                                            {selectedRunDetails.taskType === 'Classification' ? 'Predicted Class' : 'Predicted'} <SortIndicator active={predsSort.key === 'predicted'} direction={predsSort.direction} />
+                                         </th>
                                      </tr>
                                  </thead>
                                  <tbody>
@@ -852,20 +958,32 @@ export const MLBuilderSection: React.FC<MLBuilderSectionProps> = ({ addNotificat
                 <div className="bg-white/5 p-6 rounded-lg">
                     <div className="overflow-auto max-h-[600px] relative border border-white/10 rounded-lg">
                         <table className="w-full text-sm text-left">
-                            <thead className="bg-gray-800 sticky top-0 z-10">
+                            <thead className="bg-gray-800 sticky top-0 z-10 text-white font-greycliff">
                                 <tr>
-                                    <th className="p-3 font-greycliff w-[25%]">Name</th>
-                                    <th className="p-3 font-greycliff w-[20%]">Dataset</th>
-                                    <th className="p-3 font-greycliff">Task Type</th>
-                                    <th className="p-3 font-greycliff">Created At</th>
-                                    <th className="p-3 font-greycliff">Created By</th>
-                                    <th className="p-3 font-greycliff text-center">Status</th>
-                                    <th className="p-3 font-greycliff text-center">Actions</th>
+                                    <th className="p-3 font-greycliff w-[25%] cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(runsSort, setRunsSort, 'name')}>
+                                        Name <SortIndicator active={runsSort.key === 'name'} direction={runsSort.direction} />
+                                    </th>
+                                    <th className="p-3 font-greycliff w-[20%] cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(runsSort, setRunsSort, 'datasetName')}>
+                                        Dataset <SortIndicator active={runsSort.key === 'datasetName'} direction={runsSort.direction} />
+                                    </th>
+                                    <th className="p-3 font-greycliff cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(runsSort, setRunsSort, 'taskType')}>
+                                        Task Type <SortIndicator active={runsSort.key === 'taskType'} direction={runsSort.direction} />
+                                    </th>
+                                    <th className="p-3 font-greycliff cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(runsSort, setRunsSort, 'createdAt')}>
+                                        Created At <SortIndicator active={runsSort.key === 'createdAt'} direction={runsSort.direction} />
+                                    </th>
+                                    <th className="p-3 font-greycliff cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(runsSort, setRunsSort, 'createdBy')}>
+                                        Created By <SortIndicator active={runsSort.key === 'createdBy'} direction={runsSort.direction} />
+                                    </th>
+                                    <th className="p-3 font-greycliff text-center cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(runsSort, setRunsSort, 'status')}>
+                                        Status <SortIndicator active={runsSort.key === 'status'} direction={runsSort.direction} />
+                                    </th>
+                                    <th className="p-3 text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {paginatedRuns.length > 0 ? paginatedRuns.map(run => (
-                                    <tr key={run.id} className="border-b border-white/10">
+                                    <tr key={run.id} className="border-b border-white/10 hover:bg-white/5 transition-colors">
                                         <td className="p-3 font-greycliff text-white">{run.name}</td>
                                         <td className="p-3 font-greycliff truncate" title={run.datasetName}>{run.datasetName}</td>
                                         <td className="p-3 font-greycliff capitalize">{run.taskType}</td>

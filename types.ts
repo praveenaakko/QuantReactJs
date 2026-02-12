@@ -57,7 +57,7 @@ export interface NotificationMessage {
   type: NotificationType;
 }
 
-export type View = 'dashboard' | 'docker' | 'ml-builder' | 'ml-predictor';
+export type View = 'dashboard' | 'docker' | 'ml-builder' | 'ml-predictor' | 'compound-gen' | 'synthesis-route';
 
 export enum DockingStatus {
   PROCESSING = 'processing',
@@ -132,6 +132,24 @@ export interface SavedModel {
   taskType: 'Prediction' | 'Classification';
   date: string;
   buildTime: number; // in seconds
+}
+
+export interface CompoundGenRun {
+  id: string;
+  title: string;
+  seeds: number;
+  outputSize: number;
+  generatedOn: string;
+  status: 'success' | 'processing' | 'failure';
+}
+
+export interface SynthesisReport {
+  id: string;
+  projectName: string;
+  targetMolecule: string;
+  generatedOn: string;
+  routes: number;
+  status: 'success' | 'processing' | 'failure';
 }
 
 export enum UserRole {

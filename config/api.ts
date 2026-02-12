@@ -1,4 +1,5 @@
-const BACKEND_URL = '';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
+const UNAUTHORIZED_EVENT = 'auth:unauthorized';
 
 const api = {
   async request(endpoint: string, options: RequestInit = {}) {
@@ -25,6 +26,11 @@ const api = {
     const response = await fetch(fullUrl, config);
 
     if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
+      }
       const errorData = await response.json().catch(() => ({ detail: 'An unknown error occurred.' }));
       if (errorData.detail && Array.isArray(errorData.detail)) {
           const formattedError = errorData.detail.map((err: any) => {

@@ -5,6 +5,7 @@ import { useStore } from '../store/store';
 import { UserRole, UserStatus, NotificationType } from '../types';
 import api from '../config/api';
 import { ConfirmationModal } from './ConfirmationModal';
+import { hasUserPhoto } from '../utils/userPhoto';
 
 export const UserManagementSection: React.FC = () => {
   const { state, dispatch } = useStore();
@@ -112,7 +113,7 @@ export const UserManagementSection: React.FC = () => {
                 <tbody>
                     {paginatedUsers.length > 0 ? (
                         paginatedUsers.map(user => {
-                            const hasPhoto = user.photoUrl && !user.photoUrl.includes('null') && !user.photoUrl.includes('undefined') && user.photoUrl !== '/';
+                            const hasPhoto = hasUserPhoto(user.photoUrl);
                             return (
                                 <tr key={user.id} className="border-b border-white/10 hover:bg-white/5 transition-colors">
                                     <td className="p-3">

@@ -61,6 +61,19 @@ const DashboardStatCard: React.FC<{ icon: string; label: string; value: string |
   </div>
 );
 
+const formatDate12h = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+};
+
 // Helper Mappers
 const mapApiDockingResultToDockingResult = (apiResult: any): DockingResult => ({
     id: String(apiResult.id),
@@ -77,7 +90,7 @@ const mapApiDockingRunToDockingRun = (apiRun: any, currentUser: any): DockingRun
     proteinName: apiRun.protein_name,
     ligandCount: apiRun.ligand_count,
     dockingType: apiRun.docking_type,
-    createdAt: new Date(apiRun.created_at).toLocaleString(),
+    createdAt: formatDate12h(apiRun.created_at),
     createdBy: apiRun.created_by || currentUser?.name || 'Unknown',
     status: apiRun.status as DockingStatus,
     duration: apiRun.duration,
@@ -136,6 +149,19 @@ const fileToBase64 = (file: File): Promise<string> =>
 
 type DockingView = 'list' | 'create' | 'details';
 
+// Sorting Types
+interface SortConfig<T> {
+    key: keyof T | null;
+    direction: 'asc' | 'desc';
+}
+
+const SortIndicator = ({ active, direction }: { active: boolean, direction: 'asc' | 'desc' }) => {
+    if (!active) return <i className="ri-expand-up-down-line ml-1 opacity-30"></i>;
+    return direction === 'asc' 
+        ? <i className="ri-arrow-up-s-line ml-1 text-cyan-400"></i> 
+        : <i className="ri-arrow-down-s-line ml-1 text-cyan-400"></i>;
+};
+
 export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification }) => {
     const { state, dispatch } = useStore();
     const { selectedProtein, selectedLigands, dockingRuns, currentUser, proteins, ligands, ligandGroups } = state;
@@ -149,6 +175,7 @@ export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification 
     const [userFilter, setUserFilter] = useState('all');
     const [runsCurrentPage, setRunsCurrentPage] = useState(1);
     const [runsItemsPerPage, setRunsItemsPerPage] = useState(5);
+    const [runsSort, setRunsSort] = useState<SortConfig<DockingRun>>({ key: 'createdAt', direction: 'desc' });
 
     // Create View State
     const [runName, setRunName] = useState('');
@@ -165,10 +192,13 @@ export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification 
     const [proteinSearch, setProteinSearch] = useState('');
     const [proteinPage, setProteinPage] = useState(1);
     const [proteinItemsPerPage, setProteinItemsPerPage] = useState(5);
+    const [proteinSort, setProteinSort] = useState<SortConfig<Protein>>({ key: 'name', direction: 'asc' });
+
     const [ligandSearch, setLigandSearch] = useState('');
     const [ligandGroupFilter, setLigandGroupFilter] = useState('');
     const [ligandPage, setLigandPage] = useState(1);
     const [ligandItemsPerPage, setLigandItemsPerPage] = useState(10);
+    const [ligandSort, setLigandSort] = useState<SortConfig<Ligand>>({ key: 'name', direction: 'asc' });
 
     // Modals
     const [isProteinModalOpen, setIsProteinModalOpen] = useState(false);
@@ -181,6 +211,7 @@ export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification 
     const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
     const [resultsCurrentPage, setResultsCurrentPage] = useState(1);
     const [resultsItemsPerPage, setResultsItemsPerPage] = useState(5);
+    const [resultsSort, setResultsSort] = useState<SortConfig<DockingResult>>({ key: 'bindingEnergy', direction: 'asc' });
 
     // --- Effects ---
 
@@ -192,8 +223,7 @@ export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification 
             try {
                 const runsData = await api.get('/docking/runs');
                 const mappedRuns = (Array.isArray(runsData) ? runsData : [])
-                    .map(run => mapApiDockingRunToDockingRun(run, currentUser))
-                    .sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                    .map(run => mapApiDockingRunToDockingRun(run, currentUser));
                 dispatch({ type: 'SET_DOCKING_RUNS', payload: mappedRuns });
             } catch (error) {
                 addNotification(error instanceof Error ? error.message : 'Failed to fetch docking runs.', NotificationType.ERROR);
@@ -236,7 +266,22 @@ export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification 
 
     // --- Computed Data ---
     
-    // List View Filtering
+    // Generic Sorter
+    const sortData = <T,>(data: T[], config: SortConfig<T>) => {
+        if (!config.key) return data;
+        return [...data].sort((a, b) => {
+            const valA = a[config.key!];
+            const valB = b[config.key!];
+            if (valA === valB) return 0;
+            if (valA === null || valA === undefined) return 1;
+            if (valB === null || valB === undefined) return -1;
+
+            const comparison = valA < valB ? -1 : 1;
+            return config.direction === 'asc' ? comparison : -comparison;
+        });
+    };
+
+    // List View Filtering & Sorting
     const dashboardStats = useMemo(() => {
         const totalRuns = dockingRuns.length;
         const successfulRuns = dockingRuns.filter(run => run.status === DockingStatus.SUCCESS);
@@ -252,35 +297,53 @@ export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification 
     }, [dockingRuns]);
 
     const filteredRuns = useMemo(() => {
-        return dockingRuns.filter(run => {
+        const filtered = dockingRuns.filter(run => {
             const matchesSearch = run.name.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesStatus = statusFilter === 'all' || run.status === statusFilter;
             const matchesUser = userFilter === 'all' || run.createdBy === userFilter;
             return matchesSearch && matchesStatus && matchesUser;
         });
-    }, [dockingRuns, searchTerm, statusFilter, userFilter]);
+        return sortData(filtered, runsSort);
+    }, [dockingRuns, searchTerm, statusFilter, userFilter, runsSort]);
 
     const paginatedRuns = useMemo(() => filteredRuns.slice((runsCurrentPage - 1) * runsItemsPerPage, runsCurrentPage * runsItemsPerPage), [filteredRuns, runsCurrentPage, runsItemsPerPage]);
     const runsTotalPages = Math.ceil(filteredRuns.length / runsItemsPerPage);
 
-    // Create View Filtering
-    const filteredProteins = useMemo(() => proteins.filter(p => p.name.toLowerCase().includes(proteinSearch.toLowerCase()) || p.rcsbId.toLowerCase().includes(proteinSearch.toLowerCase())), [proteins, proteinSearch]);
+    // Create View Filtering & Sorting
+    const filteredProteins = useMemo(() => {
+        const filtered = proteins.filter(p => p.name.toLowerCase().includes(proteinSearch.toLowerCase()) || p.rcsbId.toLowerCase().includes(proteinSearch.toLowerCase()));
+        return sortData(filtered, proteinSort);
+    }, [proteins, proteinSearch, proteinSort]);
+
     const paginatedProteins = useMemo(() => filteredProteins.slice((proteinPage - 1) * proteinItemsPerPage, proteinPage * proteinItemsPerPage), [filteredProteins, proteinPage, proteinItemsPerPage]);
     const proteinTotalPages = Math.ceil(filteredProteins.length / proteinItemsPerPage);
 
-    const filteredLigands = useMemo(() => ligands.filter(l => 
-        (l.name.toLowerCase().includes(ligandSearch.toLowerCase()) || l.smiles.toLowerCase().includes(ligandSearch.toLowerCase())) &&
-        (ligandGroupFilter === '' || l.group === ligandGroupFilter)
-    ), [ligands, ligandSearch, ligandGroupFilter]);
+    const filteredLigands = useMemo(() => {
+        const filtered = ligands.filter(l => 
+            (l.name.toLowerCase().includes(ligandSearch.toLowerCase()) || l.smiles.toLowerCase().includes(ligandSearch.toLowerCase())) &&
+            (ligandGroupFilter === '' || l.group === ligandGroupFilter)
+        );
+        return sortData(filtered, ligandSort);
+    }, [ligands, ligandSearch, ligandGroupFilter, ligandSort]);
+
     const paginatedLigands = useMemo(() => filteredLigands.slice((ligandPage - 1) * ligandItemsPerPage, ligandPage * ligandItemsPerPage), [filteredLigands, ligandPage, ligandItemsPerPage]);
     const ligandTotalPages = Math.ceil(filteredLigands.length / ligandItemsPerPage);
 
-    // Details View Filtering
-    const resultsTotalPages = Math.ceil(currentRunResults.length / resultsItemsPerPage);
-    const paginatedResults = useMemo(() => currentRunResults.slice((resultsCurrentPage - 1) * resultsItemsPerPage, resultsCurrentPage * resultsItemsPerPage), [currentRunResults, resultsCurrentPage, resultsItemsPerPage]);
+    // Details View Filtering & Sorting
+    const sortedResults = useMemo(() => sortData(currentRunResults, resultsSort), [currentRunResults, resultsSort]);
+    const resultsTotalPages = Math.ceil(sortedResults.length / resultsItemsPerPage);
+    const paginatedResults = useMemo(() => sortedResults.slice((resultsCurrentPage - 1) * resultsItemsPerPage, resultsCurrentPage * resultsItemsPerPage), [sortedResults, resultsCurrentPage, resultsItemsPerPage]);
     const selectedResult = useMemo(() => currentRunResults.find(r => r.id === selectedResultId), [currentRunResults, selectedResultId]);
 
     // --- Handlers ---
+
+    const toggleSort = <T,>(config: SortConfig<T>, setConfig: React.Dispatch<React.SetStateAction<SortConfig<T>>>, key: keyof T) => {
+        if (config.key === key) {
+            setConfig({ key, direction: config.direction === 'asc' ? 'desc' : 'asc' });
+        } else {
+            setConfig({ key, direction: 'asc' });
+        }
+    };
 
     const handleViewDetails = async (run: DockingRun) => {
         if (run.status !== DockingStatus.SUCCESS) return;
@@ -456,10 +519,26 @@ export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification 
         title: {
             text: selectedResult ? `Mode vs Energy` : 'Mode vs Energy',
             subtext: selectedResult ? `${selectedResult.smiles.substring(0, 30)}...` : 'Select a result',
-            textStyle: { color: '#fff', fontFamily: 'Greycliff CF' }
+            itemGap: 8,
+            left: 'center',
+            textStyle: { 
+                color: '#fff', 
+                fontFamily: 'Greycliff CF',
+                fontSize: 16 
+            },
+            subtextStyle: {
+                fontSize: 12,
+                color: 'rgba(255,255,255,0.6)'
+            }
         },
         tooltip: { trigger: 'axis' },
-        grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+        grid: { 
+            top: 80,
+            left: 60, 
+            right: '4%', 
+            bottom: '3%', 
+            containLabel: true 
+        },
         xAxis: { type: 'category', data: Array.from({ length: selectedRunDetails?.numModes || numModes }, (_, i) => `Mode ${i + 1}`), axisLabel: { color: 'rgba(255,255,255,0.7)' } },
         yAxis: { type: 'value', name: 'Energy (kcal/mol)', axisLabel: { color: 'rgba(255,255,255,0.7)' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } } },
         series: [{ data: selectedResult ? selectedResult.energyModes : [], type: 'line', smooth: true, lineStyle: { color: 'rgba(87, 181, 231, 1)' }, areaStyle: { color: 'rgba(87, 181, 231, 0.2)' } }]
@@ -494,9 +573,15 @@ export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification 
                                     <thead className="bg-black/40 sticky top-0 text-xs text-white/50 z-10">
                                         <tr>
                                             <th className="p-3 text-center w-12"></th>
-                                            <th className="p-3">Protein Name</th>
-                                            <th className="p-3">RCSB ID</th>
-                                            <th className="p-3 text-right">Method</th>
+                                            <th className="p-3 cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(proteinSort, setProteinSort, 'name')}>
+                                                Protein Name <SortIndicator active={proteinSort.key === 'name'} direction={proteinSort.direction} />
+                                            </th>
+                                            <th className="p-3 cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(proteinSort, setProteinSort, 'rcsbId')}>
+                                                RCSB ID <SortIndicator active={proteinSort.key === 'rcsbId'} direction={proteinSort.direction} />
+                                            </th>
+                                            <th className="p-3 text-right cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(proteinSort, setProteinSort, 'method')}>
+                                                Method <SortIndicator active={proteinSort.key === 'method'} direction={proteinSort.direction} />
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody className="text-white/80">
@@ -608,8 +693,12 @@ export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification 
                                                     }}
                                                 />
                                             </th>
-                                            <th className="p-3">Ligand Name</th>
-                                            <th className="p-3">SMILES ID</th>
+                                            <th className="p-3 cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(ligandSort, setLigandSort, 'name')}>
+                                                Ligand Name <SortIndicator active={ligandSort.key === 'name'} direction={ligandSort.direction} />
+                                            </th>
+                                            <th className="p-3 cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(ligandSort, setLigandSort, 'smiles')}>
+                                                SMILES ID <SortIndicator active={ligandSort.key === 'smiles'} direction={ligandSort.direction} />
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody className="text-white/80">
@@ -748,8 +837,12 @@ export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification 
                                          <tr>
                                              <th className="p-3 font-greycliff w-[15%] text-center">No.</th>
                                              <th className="p-3 font-greycliff w-[45%]">SMILES</th>
-                                             <th className="p-3 font-greycliff w-[20%] text-right">Energy</th>
-                                             <th className="p-3 font-greycliff w-[20%] text-right">RMSD</th>
+                                             <th className="p-3 font-greycliff w-[20%] text-right cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(resultsSort, setResultsSort, 'bindingEnergy')}>
+                                                 Energy <SortIndicator active={resultsSort.key === 'bindingEnergy'} direction={resultsSort.direction} />
+                                             </th>
+                                             <th className="p-3 font-greycliff w-[20%] text-right cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(resultsSort, setResultsSort, 'rmsd')}>
+                                                 RMSD <SortIndicator active={resultsSort.key === 'rmsd'} direction={resultsSort.direction} />
+                                             </th>
                                          </tr>
                                      </thead>
                                      <tbody>
@@ -817,19 +910,33 @@ export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification 
                         <table className="w-full text-sm text-left">
                             <thead className="bg-gray-800 sticky top-0 z-10">
                                 <tr>
-                                    <th className="p-3 font-greycliff w-[25%]">Name</th>
-                                    <th className="p-3 font-greycliff w-[15%]">Protein</th>
-                                    <th className="p-3 font-greycliff text-center">Ligands</th>
-                                    <th className="p-3 font-greycliff">Docking Type</th>
-                                    <th className="p-3 font-greycliff">Created At</th>
-                                    <th className="p-3 font-greycliff">Created By</th>
-                                    <th className="p-3 font-greycliff text-center">Status</th>
+                                    <th className="p-3 font-greycliff w-[20%] cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(runsSort, setRunsSort, 'name')}>
+                                        Name <SortIndicator active={runsSort.key === 'name'} direction={runsSort.direction} />
+                                    </th>
+                                    <th className="p-3 font-greycliff w-[15%] cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(runsSort, setRunsSort, 'proteinName')}>
+                                        Protein <SortIndicator active={runsSort.key === 'proteinName'} direction={runsSort.direction} />
+                                    </th>
+                                    <th className="p-3 font-greycliff text-center cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(runsSort, setRunsSort, 'ligandCount')}>
+                                        Ligands <SortIndicator active={runsSort.key === 'ligandCount'} direction={runsSort.direction} />
+                                    </th>
+                                    <th className="p-3 font-greycliff cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(runsSort, setRunsSort, 'dockingType')}>
+                                        Docking Type <SortIndicator active={runsSort.key === 'dockingType'} direction={runsSort.direction} />
+                                    </th>
+                                    <th className="p-3 font-greycliff cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(runsSort, setRunsSort, 'createdAt')}>
+                                        Created At <SortIndicator active={runsSort.key === 'createdAt'} direction={runsSort.direction} />
+                                    </th>
+                                    <th className="p-3 font-greycliff cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(runsSort, setRunsSort, 'createdBy')}>
+                                        Created By <SortIndicator active={runsSort.key === 'createdBy'} direction={runsSort.direction} />
+                                    </th>
+                                    <th className="p-3 font-greycliff text-center cursor-pointer hover:text-white transition-colors" onClick={() => toggleSort(runsSort, setRunsSort, 'status')}>
+                                        Status <SortIndicator active={runsSort.key === 'status'} direction={runsSort.direction} />
+                                    </th>
                                     <th className="p-3 font-greycliff text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {paginatedRuns.length > 0 ? paginatedRuns.map(run => (
-                                    <tr key={run.id} className="border-b border-white/10">
+                                    <tr key={run.id} className="border-b border-white/10 hover:bg-white/5 transition-colors">
                                         <td className="p-3 font-greycliff text-white">{run.name}</td>
                                         <td className="p-3 font-greycliff">{run.proteinName}</td>
                                         <td className="p-3 font-greycliff text-center">{run.ligandCount}</td>

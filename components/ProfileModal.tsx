@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { useStore } from '../store/store';
+import { hasUserPhoto } from '../utils/userPhoto';
 
 const ProfileDetailItem: React.FC<{ icon: string, label: string, value: string }> = ({ icon, label, value }) => (
     <div className="flex items-start space-x-4">
@@ -22,7 +23,7 @@ export const ProfileModal: React.FC = () => {
   if (!isProfileModalOpen || !currentUser) return null;
 
   // Check if photoUrl is valid (not null, undefined string, or empty)
-  const hasPhoto = currentUser.photoUrl && !currentUser.photoUrl.includes('null') && !currentUser.photoUrl.includes('undefined') && currentUser.photoUrl !== '/';
+  const hasPhoto = hasUserPhoto(currentUser.photoUrl);
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100]" onClick={handleClose}>

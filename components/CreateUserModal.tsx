@@ -4,6 +4,7 @@ import type { User } from '../types';
 import { UserRole, UserStatus, NotificationType } from '../types';
 import { useStore } from '../store/store';
 import api from '../config/api';
+import { normalizeUserPhoto } from '../utils/userPhoto';
 
 interface CreateUserModalProps {
     addNotification: (message: string, type: NotificationType) => void;
@@ -91,7 +92,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ addNotificatio
             name: name, // Use name from the form state, which is guaranteed to be correct
             email: email,
             additionalInfo: additionalInfo,
-            photoUrl: responseData.photoUrl || photoPreview || "", 
+            photoUrl: normalizeUserPhoto(responseData.photo ?? responseData.photoUrl) || photoPreview || "",
             status: responseData.status || UserStatus.PENDING, // Default to PENDING
             role: responseData.role || UserRole.USER, // Default to USER
         };

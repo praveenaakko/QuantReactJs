@@ -4,6 +4,7 @@ import type { User } from '../types';
 import { UserStatus, UserRole } from '../types';
 import { useStore } from '../store/store';
 import api from '../config/api';
+import { normalizeUserPhoto } from '../utils/userPhoto';
 
 interface LoginPageProps {
   onLoginSuccess: (user: User) => void;
@@ -13,7 +14,7 @@ const mapApiUserToUser = (apiUser: any): User => ({
   id: String(apiUser.id),
   name: apiUser.name,
   email: apiUser.email,
-  photoUrl: `/${String(apiUser.photo).replace(/\\/g, '/').replace('app/', '')}`,
+  photoUrl: normalizeUserPhoto(apiUser.photo ?? apiUser.photoUrl),
   status: apiUser.status as UserStatus,
   role: apiUser.role as UserRole,
   additionalInfo: apiUser.additionalInfo || '',
