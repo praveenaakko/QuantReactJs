@@ -8,6 +8,7 @@ import { EChartComponent } from './EChartComponent';
 import { ConfirmationModal } from './ConfirmationModal';
 import type { EChartsOption } from 'echarts';
 import api from '../config/api';
+import { formatDate12h, toEpochMs } from '../utils/dateTime';
 
 const DashboardStatCard: React.FC<{ icon: string; label: string; value: string | number; color: string; }> = ({ icon, label, value, color }) => (
   <div className="bg-white/5 p-6 rounded-lg border border-white/10 flex items-center space-x-4">
@@ -115,18 +116,14 @@ export const CompoundGenSection: React.FC = () => {
     const [runToDelete, setRunToDelete] = useState<CompoundGenRun | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const formatDate12h = (value: string) => {
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return value;
-        return date.toLocaleString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: '2-digit',
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-        });
-    };
+    const mapApiCompoundGenRun = (apiRun: any): CompoundGenRun => ({
+      id: String(apiRun?.id ?? ''),
+      title: apiRun?.title || apiRun?.project_name || `Run ${apiRun?.id ?? ''}`,
+      seeds: Number(apiRun?.seeds ?? apiRun?.seed_count ?? 0),
+      outputSize: Number(apiRun?.outputSize ?? apiRun?.output_size ?? apiRun?.volume ?? 0),
+      generatedOn: apiRun?.generatedOn || apiRun?.generated_on || apiRun?.created_at || '',
+      status: (apiRun?.status || 'processing') as CompoundGenRun['status'],
+    });
 
     const addNotification = (message: string, type: NotificationType) => {
         const id = Date.now();
@@ -144,7 +141,10 @@ export const CompoundGenSection: React.FC = () => {
         dispatch({ type: 'SET_LOADING', payload: true });
         try {
             const data = await api.get('/compounds/runs');
-            dispatch({ type: 'SET_COMPOUND_GEN_RUNS', payload: Array.isArray(data) ? data : [] });
+            dispatch({
+              type: 'SET_COMPOUND_GEN_RUNS',
+              payload: (Array.isArray(data) ? data : []).map(mapApiCompoundGenRun),
+            });
         } catch (error) {
             console.error(error);
             addNotification('Failed to fetch generation runs.', NotificationType.ERROR);
@@ -163,7 +163,7 @@ export const CompoundGenSection: React.FC = () => {
 
         try {
             const newRun = await api.post('/compounds/generate', formData);
-            dispatch({ type: 'SET_COMPOUND_GEN_RUNS', payload: [newRun, ...compoundGenRuns] });
+            dispatch({ type: 'SET_COMPOUND_GEN_RUNS', payload: [mapApiCompoundGenRun(newRun), ...compoundGenRuns] });
             addNotification(`Pipeline "${title}" has been successfully initiated.`, NotificationType.SUCCESS);
         } catch (error) {
             addNotification('Failed to start generation run.', NotificationType.ERROR);
@@ -209,6 +209,44 @@ export const CompoundGenSection: React.FC = () => {
         }
     };
 
+    const escapeCsvValue = (value: string | number): string => {
+      const str = String(value ?? '');
+      if (/[",\n]/.test(str)) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const handleDownloadLibraryCsv = () => {
+      if (!selectedRun || sortedLibrary.length === 0) {
+        addNotification('No molecular library rows available to export.', NotificationType.ERROR);
+        return;
+      }
+
+      const headers = ['smiles', 'molecular_weight', 'rules_passed', 'np_count'];
+      const rows = sortedLibrary.map((item) => {
+        const ro5 = parseRo5Value(item.ro5);
+        return [
+          escapeCsvValue(item.smiles),
+          escapeCsvValue(item.weight),
+          escapeCsvValue(`${ro5.passed}/${ro5.total}`),
+          escapeCsvValue(item.npCount),
+        ].join(',');
+      });
+
+      const csvContent = `${headers.join(',')}\n${rows.join('\n')}`;
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const safeTitle = (selectedRun.title || 'molecular_library').replace(/\s+/g, '_');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${safeTitle}_library.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    };
+
     const handleSort = (key: SortKey) => {
       let direction: 'asc' | 'desc' = 'asc';
       if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -232,8 +270,17 @@ export const CompoundGenSection: React.FC = () => {
       });
 
       return [...filtered].sort((a, b) => {
-        const valA = a[sortConfig.key];
-        const valB = b[sortConfig.key];
+        let valA = a[sortConfig.key];
+        let valB = b[sortConfig.key];
+
+        if (sortConfig.key === 'generatedOn' && typeof valA === 'string' && typeof valB === 'string') {
+          const parsedA = toEpochMs(valA);
+          const parsedB = toEpochMs(valB);
+          if (parsedA != null && parsedB != null) {
+            valA = parsedA as any;
+            valB = parsedB as any;
+          }
+        }
 
         if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
         if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
@@ -401,7 +448,17 @@ export const CompoundGenSection: React.FC = () => {
                       <i className="ri-database-2-line text-blue-400"></i>
                       <h3 className="font-greycliff font-bold text-white text-[10px] uppercase tracking-widest">Molecular Library</h3>
                    </div>
-                   <div className="relative w-64">
+                   <div className="flex items-center gap-2">
+                     <button
+                       onClick={handleDownloadLibraryCsv}
+                       disabled={sortedLibrary.length === 0}
+                       className="h-10 px-3 rounded-lg border border-white/10 bg-white/5 text-white/80 hover:bg-white/10 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 text-xs font-greycliff uppercase tracking-wider"
+                       title="Download molecular library CSV"
+                     >
+                       <i className="ri-download-2-line"></i>
+                       Download CSV
+                     </button>
+                     <div className="relative w-64">
                       <input 
                         type="text" 
                         placeholder="Filter library..." 
@@ -410,6 +467,7 @@ export const CompoundGenSection: React.FC = () => {
                         onChange={e => setLibSearchTerm(e.target.value)}
                       />
                       <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-white/20"></i>
+                     </div>
                    </div>
                 </div>
                 <div className="overflow-auto custom-scrollbar flex-grow" style={{ maxHeight: '600px' }}>

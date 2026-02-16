@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".test-dist",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "allowImportingTsExtensions": false,
+    "isolatedModules": false,
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": [
+    "tests/**/*.ts",
+    "store/reducer.ts",
+    "utils/mlPredictorMappers.ts",
+    "types.ts"
+  ]
+}

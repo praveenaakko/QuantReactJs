@@ -7,6 +7,7 @@ import { UserManagementSection } from './UserManagementSection';
 import { useStore } from '../store/store';
 import api from '../config/api';
 import { normalizeUserPhoto } from '../utils/userPhoto';
+import { toEpochMs } from '../utils/dateTime';
 
 interface DashboardSummary {
   proteinCount: number;
@@ -48,7 +49,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
         'failure': 'bg-red-500/10 text-red-400 border-red-500/20',
     };
     return (
-        <span className={`px-2 py-1 text-xs font-greycliff rounded border capitalize ${statusStyles[status] || 'bg-gray-500/20 text-gray-400 border-gray-500/30'}`}>
+        <span className={`inline-flex shrink-0 px-2 py-1 text-xs font-greycliff rounded border capitalize whitespace-nowrap ${statusStyles[status] || 'bg-gray-500/20 text-gray-400 border-gray-500/30'}`}>
             {status}
         </span>
     );
@@ -62,7 +63,7 @@ const mapApiDockingRunToDockingRun = (apiRun: any, currentUser: any): DockingRun
     proteinName: apiRun.protein_name,
     ligandCount: apiRun.ligand_count,
     dockingType: apiRun.docking_type,
-    createdAt: new Date(apiRun.created_at).toLocaleString(),
+    createdAt: apiRun.created_at || apiRun.createdAt || '',
     createdBy: apiRun.created_by || currentUser?.name || 'Unknown',
     status: apiRun.status as DockingStatus,
     duration: apiRun.duration,
@@ -76,26 +77,26 @@ const mapApiDockingRunToDockingRun = (apiRun: any, currentUser: any): DockingRun
 const mapApiTrainingRunToTrainingRun = (apiRun: any, currentUser: any): TrainingRun => ({
     id: String(apiRun.id),
     name: apiRun.name,
-    datasetName: apiRun.datasetName,
-    taskType: apiRun.taskType,
-    createdAt: new Date(apiRun.createdAt).toLocaleString(),
-    createdBy: apiRun.createdBy || currentUser?.name || 'Unknown',
+    datasetName: apiRun.datasetName || apiRun.dataset_name || 'N/A',
+    taskType: apiRun.taskType || apiRun.task_type || 'Prediction',
+    createdAt: apiRun.createdAt || apiRun.created_at || '',
+    createdBy: apiRun.createdBy || apiRun.created_by || currentUser?.name || 'Unknown',
     status: apiRun.status as TrainingStatus,
     duration: apiRun.duration,
-    modelCount: apiRun.modelCount,
+    modelCount: apiRun.modelCount || apiRun.model_count || 0,
 });
 
 const mapApiPredictionRunToPredictionRun = (apiRun: any, currentUser: any): PredictionRun => ({
     id: String(apiRun.id),
     name: apiRun.name,
     description: apiRun.description,
-    modelName: apiRun.modelName,
-    modelId: String(apiRun.modelId),
-    modelType: apiRun.modelType || 'N/A',
-    modelBuilderName: apiRun.modelBuilderName || 'N/A',
-    inputCount: apiRun.inputCount,
-    createdAt: new Date(apiRun.createdAt).toLocaleString(),
-    createdBy: apiRun.createdBy || currentUser?.name || 'Unknown',
+    modelName: apiRun.modelName || apiRun.model_name || 'N/A',
+    modelId: String(apiRun.modelId || apiRun.model_id || ''),
+    modelType: apiRun.modelType || apiRun.model_type || 'N/A',
+    modelBuilderName: apiRun.modelBuilderName || apiRun.model_builder_name || 'N/A',
+    inputCount: apiRun.inputCount || apiRun.input_count || 0,
+    createdAt: apiRun.createdAt || apiRun.created_at || '',
+    createdBy: apiRun.createdBy || apiRun.created_by || currentUser?.name || 'Unknown',
     status: apiRun.status as PredictionStatus,
     duration: apiRun.duration,
 });
@@ -113,11 +114,13 @@ const mapApiUserToUser = (apiUser: any): User => ({
 const mapApiSavedModelToSavedModel = (apiModel: any): SavedModel => ({
     id: String(apiModel.id),
     name: apiModel.name,
-    modelType: apiModel.model_type,
+    modelType: (apiModel.modelType || apiModel.model_type || 'N/A').trim() || 'N/A',
     description: apiModel.description,
     performance: apiModel.performance,
-    taskType: apiModel.task_type === 'prediction' ? 'Prediction' : 'Classification',
-    date: new Date(apiModel.date).toLocaleDateString(),
+    taskType: (String(apiModel.taskType || apiModel.task_type || 'prediction').toLowerCase() === 'classification')
+      ? 'Classification'
+      : 'Prediction',
+    date: apiModel.date || apiModel.created_at || '',
     buildTime: apiModel.build_time,
 });
 
@@ -197,11 +200,26 @@ export const HomeSection: React.FC = () => {
     fetchData();
   }, [dispatch, currentUser]);
 
-  const recentDockingRuns = useMemo(() => dockingRuns.slice(0, 5), [dockingRuns]);
-  const recentTrainingRuns = useMemo(() => trainingRuns.slice(0, 5), [trainingRuns]);
-  const recentPredictionRuns = useMemo(() => predictionRuns.slice(0, 5), [predictionRuns]);
-  const recentCompoundRuns = useMemo(() => compoundGenRuns.slice(0, 5), [compoundGenRuns]);
-  const recentSynthesisReports = useMemo(() => synthesisReports.slice(0, 5), [synthesisReports]);
+  const recentDockingRuns = useMemo(
+    () => [...dockingRuns].sort((a, b) => (toEpochMs(b.createdAt) ?? 0) - (toEpochMs(a.createdAt) ?? 0)).slice(0, 5),
+    [dockingRuns]
+  );
+  const recentTrainingRuns = useMemo(
+    () => [...trainingRuns].sort((a, b) => (toEpochMs(b.createdAt) ?? 0) - (toEpochMs(a.createdAt) ?? 0)).slice(0, 5),
+    [trainingRuns]
+  );
+  const recentPredictionRuns = useMemo(
+    () => [...predictionRuns].sort((a, b) => (toEpochMs(b.createdAt) ?? 0) - (toEpochMs(a.createdAt) ?? 0)).slice(0, 5),
+    [predictionRuns]
+  );
+  const recentCompoundRuns = useMemo(
+    () => [...compoundGenRuns].sort((a, b) => (toEpochMs(b.generatedOn) ?? 0) - (toEpochMs(a.generatedOn) ?? 0)).slice(0, 5),
+    [compoundGenRuns]
+  );
+  const recentSynthesisReports = useMemo(
+    () => [...synthesisReports].sort((a, b) => (toEpochMs(b.generatedOn) ?? 0) - (toEpochMs(a.generatedOn) ?? 0)).slice(0, 5),
+    [synthesisReports]
+  );
 
   // Calculate Chart Data for Model Build Times
   const buildTimeChartOption = useMemo<EChartsOption>(() => {
@@ -384,10 +402,10 @@ export const HomeSection: React.FC = () => {
                     <h3 className="font-argent text-xl mb-4 text-white">Recent Docking Runs</h3>
                     <ul className="space-y-3">
                         {recentDockingRuns.map(run => (
-                            <li key={run.id} className="flex justify-between items-center font-greycliff text-sm p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
-                                <div>
-                                    <p className="text-white font-medium">{run.name}</p>
-                                    <p className="text-white/40 text-xs">vs {run.proteinName}</p>
+                            <li key={run.id} className="flex justify-between items-center gap-3 font-greycliff text-sm p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-white font-medium truncate">{run.name}</p>
+                                    <p className="text-white/40 text-xs truncate">vs {run.proteinName}</p>
                                 </div>
                                 <StatusBadge status={run.status} />
                             </li>
@@ -401,10 +419,10 @@ export const HomeSection: React.FC = () => {
                     <h3 className="font-argent text-xl mb-4 text-white">Recent Training Runs</h3>
                      <ul className="space-y-3">
                         {recentTrainingRuns.map(run => (
-                            <li key={run.id} className="flex justify-between items-center font-greycliff text-sm p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
-                                <div>
-                                    <p className="text-white font-medium">{run.name}</p>
-                                    <p className="text-white/40 text-xs">{run.datasetName}</p>
+                            <li key={run.id} className="flex justify-between items-center gap-3 font-greycliff text-sm p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-white font-medium truncate">{run.name}</p>
+                                    <p className="text-white/40 text-xs truncate">{run.datasetName}</p>
                                 </div>
                                 <StatusBadge status={run.status} />
                             </li>
@@ -418,10 +436,10 @@ export const HomeSection: React.FC = () => {
                     <h3 className="font-argent text-xl mb-4 text-white">Recent Prediction Runs</h3>
                      <ul className="space-y-3">
                         {recentPredictionRuns.map(run => (
-                            <li key={run.id} className="flex justify-between items-center font-greycliff text-sm p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
-                                <div>
-                                    <p className="text-white font-medium">{run.name}</p>
-                                    <p className="text-white/40 text-xs">using {run.modelName}</p>
+                            <li key={run.id} className="flex justify-between items-center gap-3 font-greycliff text-sm p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-white font-medium truncate">{run.name}</p>
+                                    <p className="text-white/40 text-xs truncate">using {run.modelName}</p>
                                 </div>
                                 <StatusBadge status={run.status} />
                             </li>
@@ -435,10 +453,10 @@ export const HomeSection: React.FC = () => {
                     <h3 className="font-argent text-xl mb-4 text-white">Recent Compound Gen</h3>
                     <ul className="space-y-3">
                         {recentCompoundRuns.map(run => (
-                            <li key={run.id} className="flex justify-between items-center font-greycliff text-sm p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
-                                <div>
-                                    <p className="text-white font-medium">{run.title}</p>
-                                    <p className="text-white/40 text-xs">{run.outputSize} outputs</p>
+                            <li key={run.id} className="flex justify-between items-center gap-3 font-greycliff text-sm p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-white font-medium truncate">{run.title}</p>
+                                    <p className="text-white/40 text-xs truncate">{run.outputSize} outputs</p>
                                 </div>
                                 <StatusBadge status={run.status} />
                             </li>
@@ -452,10 +470,10 @@ export const HomeSection: React.FC = () => {
                     <h3 className="font-argent text-xl mb-4 text-white">Recent Synthesis Reports</h3>
                     <ul className="space-y-3">
                         {recentSynthesisReports.map(report => (
-                            <li key={report.id} className="flex justify-between items-center font-greycliff text-sm p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
-                                <div>
-                                    <p className="text-white font-medium">{report.projectName}</p>
-                                    <p className="text-white/40 text-xs">{report.routes} routes</p>
+                            <li key={report.id} className="flex justify-between items-center gap-3 font-greycliff text-sm p-3 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/5">
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-white font-medium truncate">{report.projectName}</p>
+                                    <p className="text-white/40 text-xs truncate">{report.routes} routes</p>
                                 </div>
                                 <StatusBadge status={report.status} />
                             </li>

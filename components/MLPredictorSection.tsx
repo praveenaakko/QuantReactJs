@@ -5,6 +5,7 @@ import { Pagination } from './Pagination';
 import api from '../config/api';
 import { useStore } from '../store/store';
 import { ConfirmationModal } from './ConfirmationModal';
+import { formatDate12h, mapApiPredictionRunToPredictionRun, mapApiSavedModelToSavedModel, toEpochMs } from '../utils/mlPredictorMappers';
 
 interface MLPredictorSectionProps {
     addNotification: (message: string, type: NotificationType) => void;
@@ -14,45 +15,6 @@ interface PredictionResult {
     smiles: string;
     prediction: number;
 }
-
-const formatDate12h = (value: string) => {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-    });
-};
-
-const mapApiSavedModelToSavedModel = (apiModel: any): SavedModel => ({
-    id: String(apiModel?.id || ''),
-    name: apiModel?.name || 'Unnamed Model',
-    modelType: apiModel?.model_type || 'N/A',
-    description: apiModel?.description || '',
-    performance: apiModel?.performance || 0,
-    taskType: apiModel?.task_type === 'prediction' ? 'Prediction' : 'Classification',
-    date: apiModel?.date ? formatDate12h(apiModel.date) : 'N/A',
-    buildTime: apiModel?.build_time || 0,
-});
-
-const mapApiPredictionRunToPredictionRun = (apiRun: any, currentUser: any): PredictionRun => ({
-    id: String(apiRun?.id || ''),
-    name: apiRun?.name || 'Unnamed Run',
-    description: apiRun?.description || '',
-    modelName: apiRun?.modelName || 'N/A',
-    modelId: String(apiRun?.modelId || ''),
-    modelType: apiRun?.modelType || 'N/A',
-    modelBuilderName: apiRun?.modelBuilderName || 'N/A',
-    inputCount: apiRun?.inputCount || 0,
-    createdAt: apiRun?.createdAt ? formatDate12h(apiRun.createdAt) : 'N/A',
-    createdBy: apiRun?.createdBy || currentUser?.name || 'Unknown',
-    status: (apiRun?.status as PredictionStatus) || PredictionStatus.PROCESSING,
-    duration: apiRun?.duration,
-});
 
 const FormInput: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label: string }> = ({ label, id, ...props }) => (
     <div>
@@ -177,11 +139,20 @@ export const MLPredictorSection: React.FC<MLPredictorSectionProps> = ({ addNotif
     const sortData = <T,>(data: T[], config: SortConfig<T>) => {
         if (!config.key || !data) return data || [];
         return [...data].sort((a, b) => {
-            const valA = (a as any)[config.key!];
-            const valB = (b as any)[config.key!];
+            let valA = (a as any)[config.key!];
+            let valB = (b as any)[config.key!];
             if (valA === valB) return 0;
             if (valA === null || valA === undefined) return 1;
             if (valB === null || valB === undefined) return -1;
+
+            if (typeof valA === 'string' && typeof valB === 'string' && (config.key === 'createdAt' || config.key === 'date')) {
+                const parsedA = toEpochMs(valA);
+                const parsedB = toEpochMs(valB);
+                if (parsedA != null && parsedB != null) {
+                    valA = parsedA;
+                    valB = parsedB;
+                }
+            }
             const comparison = valA < valB ? -1 : 1;
             return config.direction === 'asc' ? comparison : -comparison;
         });
@@ -412,7 +383,7 @@ export const MLPredictorSection: React.FC<MLPredictorSectionProps> = ({ addNotif
                                             <td className="p-3 text-white/50 truncate max-w-[200px]">{model.description || '-'}</td>
                                             <td className="p-3 text-right font-mono text-cyan-400">{model.performance.toFixed(3)}</td>
                                             <td className="p-3 text-white/70">{model.taskType}</td>
-                                            <td className="p-3 text-white/50">{model.date}</td>
+                                            <td className="p-3 text-white/50">{model.date ? formatDate12h(model.date) : '-'}</td>
                                             <td className="p-3 text-center">
                                                 <input
                                                     type="radio"
@@ -484,7 +455,7 @@ export const MLPredictorSection: React.FC<MLPredictorSectionProps> = ({ addNotif
                                     <p><span className="text-white/60 w-32 inline-block">Task:</span> {selectedModel.taskType}</p>
                                     <p><span className="text-white/60 w-32 inline-block">Performance:</span> {selectedModel.performance.toFixed(3)} ({selectedModel.taskType === 'Prediction' ? 'R²' : 'Accuracy'})</p>
                                     <p><span className="text-white/60 w-32 inline-block">Build Time:</span> {selectedModel.buildTime}s</p>
-                                    <p><span className="text-white/60 w-32 inline-block">Created:</span> {selectedModel.date}</p>
+                                    <p><span className="text-white/60 w-32 inline-block">Created:</span> {selectedModel.date ? formatDate12h(selectedModel.date) : '-'}</p>
                                     <div className="pt-2">
                                         <span className="text-white/60 block mb-1">Description:</span>
                                         <div className="text-white/80 bg-black/20 p-3 rounded-lg border border-white/5 min-h-[100px]">
@@ -664,7 +635,7 @@ export const MLPredictorSection: React.FC<MLPredictorSectionProps> = ({ addNotif
                                             <div className="text-[10px] text-white/40 font-bold uppercase">{run.modelType}</div>
                                         </td>
                                         <td className="p-3 text-center font-bold text-white/90">{run.inputCount}</td>
-                                        <td className="p-3 text-white/60 text-xs">{run.createdAt}</td>
+                                        <td className="p-3 text-white/60 text-xs">{run.createdAt ? formatDate12h(run.createdAt) : '-'}</td>
                                         <td className="p-3">
                                             <div className="text-white/80 text-xs">Run by: <span className="text-white">{run.createdBy}</span></div>
                                             <div className="text-[10px] text-white/30 font-bold uppercase">Model by: {run.modelBuilderName}</div>

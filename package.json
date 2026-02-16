@@ -5,6 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test:build": "rm -rf .test-dist && tsc -p tsconfig.tests.json && printf '{\"type\":\"commonjs\"}\\n' > .test-dist/package.json",
+    "test": "npm run test:build && node --test .test-dist/tests/*.test.js",
     "build": "vite build",
     "preview": "vite preview"
   },

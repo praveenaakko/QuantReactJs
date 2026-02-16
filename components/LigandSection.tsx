@@ -11,53 +11,6 @@ interface LigandSectionProps {
   addNotification: (message: string, type: NotificationType) => void;
 }
 
-// --- MOCK DATA ---
-const staticLigandGroups: LigandGroup[] = [
-  { name: 'Kinase Inhibitors', count: 8 },
-  { name: 'Fragment Library', count: 12 },
-  { name: 'Natural Products', count: 5 },
-  { name: 'Pain Relief', count: 3 },
-];
-
-const staticLigands: Ligand[] = [
-  // Kinase Inhibitors
-  { id: 'l01', name: 'Gefitinib', smiles: 'C1=CC(=C(C=C1F)Cl)NC2=C3C=C(C=CC3=NC=C2)OCC(C(F)(F)F)O', formula: 'C22H24ClFN4O3', group: 'Kinase Inhibitors' },
-  { id: 'l02', name: 'Erlotinib', smiles: 'C1=CC=C(C=C1)C#C.C1=CC(=C(C=C1NC2=C3C=C(C=CC3=NC=C2)OCCOC)OCCOC)N(C)C', formula: 'C22H23N3O4', group: 'Kinase Inhibitors' },
-  { id: 'l03', name: 'Lapatinib', smiles: 'CS(=O)(=O)CCNCC1=CC=C(O1)C2=C(C=C3C(=C2)C(=NC=N3)NC4=CC(=C(C=C4)F)Cl)OC(C)C', formula: 'C29H26ClFN4O4S', group: 'Kinase Inhibitors' },
-  { id: 'l04', name: 'Imatinib', smiles: 'CC1=C(C=C(C=C1)NC(=O)C2=CC=C(C=C2)CN3CCN(CC3)C)NC4=NC=C(C=C4)C5=CN=CC=C5', formula: 'C29H31N7O', group: 'Kinase Inhibitors' },
-  { id: 'l05', name: 'Dasatinib', smiles: 'CC1=C(C(=CC=C1)Cl)NC(=O)C2=CN=C(S2)NC3=C(C=C(N=C3)N4CCN(CC4)CCO)C', formula: 'C22H26ClN7O2S', group: 'Kinase Inhibitors' },
-  { id: 'l06', name: 'Sorafenib', smiles: 'CNC(=O)C1=NC=C(C=C1)OC2=CC=C(C=C2)NC(=O)NC3=CC=C(C=C3)C(F)(F)F', formula: 'C21H16ClF3N4O3', group: 'Kinase Inhibitors' },
-  { id: 'l07', name: 'Sunitinib', smiles: 'CCN(CC)CCNC(=O)C1=C(NC(=C1C)C=C2C3=C(C=CC(=C3)F)NC2=O)C', formula: 'C22H27FN4O2', group: 'Kinase Inhibitors' },
-  { id: 'l08', name: 'Pazopanib', smiles: 'CC1=CC=C(C=C1)S(=O)(=O)NC2=C(C=C(C=C2)N=NC3=C(C=CC(=C3)N(C)C)C)C', formula: 'C21H23N7O2S', group: 'Kinase Inhibitors' },
-  
-  // Fragment Library
-  { id: 'l09', name: 'Fragment 001', smiles: 'c1ccccc1', formula: 'C6H6', group: 'Fragment Library' },
-  { id: 'l10', name: 'Fragment 002', smiles: 'c1ccncc1', formula: 'C5H5N', group: 'Fragment Library' },
-  { id: 'l11', name: 'Fragment 003', smiles: 'c1cncnc1', formula: 'C4H4N2', group: 'Fragment Library' },
-  { id: 'l12', name: 'Fragment 004', smiles: 'c1cc[nH]c1', formula: 'C4H5N', group: 'Fragment Library' },
-  { id: 'l13', name: 'Fragment 005', smiles: 'c1ccoc1', formula: 'C4H4O', group: 'Fragment Library' },
-  { id: 'l14', name: 'Fragment 006', smiles: 'c1ccsc1', formula: 'C4H4S', group: 'Fragment Library' },
-  { id: 'l15', name: 'Fragment 007', smiles: 'C1CCOC1', formula: 'C4H8O', group: 'Fragment Library' },
-  { id: 'l16', name: 'Fragment 008', smiles: 'C1CCNCC1', formula: 'C5H11N', group: 'Fragment Library' },
-  { id: 'l17', name: 'Fragment 009', smiles: 'CC(=O)N', formula: 'C2H5NO', group: 'Fragment Library' },
-  { id: 'l18', name: 'Fragment 010', smiles: 'c1c[nH]cn1', formula: 'C3H4N2', group: 'Fragment Library' },
-  { id: 'l19', name: 'Fragment 011', smiles: 'c1cn[nH]c1', formula: 'C3H4N2', group: 'Fragment Library' },
-  { id: 'l20', name: 'Fragment 012', smiles: 'C(C)O', formula: 'C2H6O', group: 'Fragment Library' },
-  
-  // Natural Products
-  { id: 'l21', name: 'Quercetin', smiles: 'C1=C(C=C(C(=C1)O)O)C2=C(C(=O)C3=C(C=C(C=C3O2)O)O)O', formula: 'C15H10O7', group: 'Natural Products' },
-  { id: 'l22', name: 'Resveratrol', smiles: 'C1=CC(=CC=C1C=CC2=CC(=CC(=C2)O)O)O', formula: 'C14H12O3', group: 'Natural Products' },
-  { id: 'l23', name: 'Caffeine', smiles: 'CN1C=NC2=C1C(=O)N(C(=O)N2C)C', formula: 'C8H10N4O2', group: 'Natural Products' },
-  { id: 'l24', name: 'Morphine', smiles: 'C1CN2C3C4C1C5C2C3(C=CC4O)OC6=C5C(=C(C=C6)O)O', formula: 'C17H19NO3', group: 'Natural Products' },
-  { id: 'l25', name: 'Taxol', smiles: 'CC1=C(C(=O)C2(C(C3C(C(C4(C(C3C(C(C2(C)C)OC(=O)C)OC(=O)C5=CC=CC=C5)O)O)C)OC(=O)C)OC(=O)C6=CC=CC=C6)O)C(=O)C(C(C1)O)NC(=O)C(C(C7=CC=CC=C7)O)NC(=O)C8=CC=CC=C8', formula: 'C47H51NO14', group: 'Natural Products' },
-  
-  // Pain Relief
-  { id: 'l26', name: 'Aspirin', smiles: 'CC(=O)OC1=CC=CC=C1C(=O)O', formula: 'C9H8O4', group: 'Pain Relief' },
-  { id: 'l27', name: 'Ibuprofen', smiles: 'CC(C)CC1=CC=C(C=C1)C(C)C(=O)O', formula: 'C13H18O2', group: 'Pain Relief' },
-  { id: 'l28', name: 'Paracetamol', smiles: 'CC(=O)NC1=CC=C(C=C1)O', formula: 'C8H9NO2', group: 'Pain Relief' },
-];
-
-
 const mapApiLigandToLigand = (apiLigand: any): Ligand => ({
     id: String(apiLigand.id),
     name: apiLigand.name,
@@ -83,16 +36,30 @@ export const LigandSection: React.FC<LigandSectionProps> = ({ addNotification })
   const [groupsItemsPerPage, setGroupsItemsPerPage] = useState(10);
 
   useEffect(() => {
-    const loadMockData = () => {
-        if (ligands.length === 0) {
-            dispatch({ type: 'SET_LIGANDS', payload: staticLigands });
-        }
-        if (ligandGroups.length === 0) {
-            dispatch({ type: 'SET_LIGAND_GROUPS', payload: staticLigandGroups });
-        }
+    const fetchLigandsAndGroups = async () => {
+      if (ligands.length > 0 && ligandGroups.length > 0) return;
+      dispatch({ type: 'SET_LOADING', payload: true });
+      try {
+        const [ligandsData, groupsData] = await Promise.all([
+          api.get('/ligands/get'),
+          api.get('/ligands/ligand_group')
+        ]);
+        dispatch({
+          type: 'SET_LIGANDS',
+          payload: (ligandsData?.ligands || []).map(mapApiLigandToLigand),
+        });
+        dispatch({
+          type: 'SET_LIGAND_GROUPS',
+          payload: groupsData?.groups || [],
+        });
+      } catch (error) {
+        addNotification(error instanceof Error ? error.message : 'Failed to load ligands.', NotificationType.ERROR);
+      } finally {
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
     };
-    loadMockData();
-  }, [ligands.length, ligandGroups.length, dispatch]);
+    fetchLigandsAndGroups();
+  }, [ligands.length, ligandGroups.length, dispatch, addNotification]);
   
   const setSelectedLigands = (payload: React.SetStateAction<Ligand[]>) => {
       dispatch({ type: 'SET_SELECTED_LIGANDS', payload });
@@ -191,33 +158,27 @@ export const LigandSection: React.FC<LigandSectionProps> = ({ addNotification })
   const isAllOnPageSelected = paginatedLigands.length > 0 && paginatedLigands.every(l => selectedLigands.some(sl => sl.id === l.id));
 
   const handleUploadLigandGroup = async (groupName: string, description: string, file: File) => {
+    const formData = new FormData();
+    formData.append('groupName', groupName);
+    formData.append('description', description);
+    formData.append('file', file);
+
     dispatch({ type: 'SET_LOADING', payload: true });
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
-
-    // Simulate adding 5 new ligands for the uploaded group
-    const newLigands: Ligand[] = Array.from({ length: 5 }, (_, i) => ({
-      id: `l_new_${groupName.replace(/\s/g, '')}_${i}`,
-      name: `${groupName} Ligand ${i + 1}`,
-      smiles: `C1=CC=C(C=C${i+1})C`,
-      formula: `C${6+i}H${6+i}`,
-      group: groupName,
-    }));
-    
-    // Check if group already exists to update count, otherwise add new group
-    const existingGroup = ligandGroups.find(g => g.name === groupName);
-    let updatedGroups: LigandGroup[];
-    if (existingGroup) {
-      updatedGroups = ligandGroups.map(g => g.name === groupName ? { ...g, count: g.count + 5 } : g);
-    } else {
-      updatedGroups = [...ligandGroups, { name: groupName, count: 5 }];
+    try {
+      await api.post('/ligands/ligand_groups/upload', formData);
+      const [ligandsData, groupsData] = await Promise.all([
+        api.get('/ligands/get'),
+        api.get('/ligands/ligand_group')
+      ]);
+      dispatch({ type: 'SET_LIGANDS', payload: (ligandsData?.ligands || []).map(mapApiLigandToLigand) });
+      dispatch({ type: 'SET_LIGAND_GROUPS', payload: groupsData?.groups || [] });
+      addNotification(`Group "${groupName}" uploaded successfully.`, NotificationType.SUCCESS);
+      setIsLigandModalOpen(false);
+    } catch (error) {
+      addNotification(error instanceof Error ? error.message : 'Failed to upload ligand group.', NotificationType.ERROR);
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
-    
-    dispatch({ type: 'SET_LIGANDS', payload: [...ligands, ...newLigands] });
-    dispatch({ type: 'SET_LIGAND_GROUPS', payload: updatedGroups });
-
-    addNotification(`Simulated upload of group "${groupName}" with 5 ligands.`, NotificationType.SUCCESS);
-    setIsLigandModalOpen(false);
-    dispatch({ type: 'SET_LOADING', payload: false });
   };
 
   const handleCreateGroup = async (groupName: string) => {
@@ -226,37 +187,23 @@ export const LigandSection: React.FC<LigandSectionProps> = ({ addNotification })
       return;
     }
     dispatch({ type: 'SET_LOADING', payload: true });
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
-
-    const selectedLigandIds = new Set(selectedLigands.map(l => l.id));
-
-    // Update the group for selected ligands
-    const updatedLigands = ligands.map(ligand => {
-        if (selectedLigandIds.has(ligand.id)) {
-            return { ...ligand, group: groupName };
-        }
-        return ligand;
-    });
-
-    // Recalculate group counts
-    const groupCounts = updatedLigands.reduce((acc, ligand) => {
-        if (ligand.group) {
-            acc[ligand.group] = (acc[ligand.group] || 0) + 1;
-        }
-        return acc;
-    }, {} as Record<string, number>);
-
-    const updatedGroups = Object.entries(groupCounts).map(([name, count]) => ({ name, count }));
-
-    dispatch({ type: 'SET_LIGANDS', payload: updatedLigands });
-    dispatch({ type: 'SET_LIGAND_GROUPS', payload: updatedGroups });
-
-    dispatch({ type: 'SET_SELECTED_LIGANDS', payload: [] });
-    setSelectedGroups([]);
-    
-    addNotification(`Group "${groupName}" created with ${selectedLigands.length} ligands.`, NotificationType.SUCCESS);
-    setCreateGroupModalOpen(false);
-    dispatch({ type: 'SET_LOADING', payload: false });
+    try {
+      await api.put('/ligands/assign_group', { groupName, ligandIds: selectedLigands.map(l => l.id) });
+      const [ligandsData, groupsData] = await Promise.all([
+        api.get('/ligands/get'),
+        api.get('/ligands/ligand_group')
+      ]);
+      dispatch({ type: 'SET_LIGANDS', payload: (ligandsData?.ligands || []).map(mapApiLigandToLigand) });
+      dispatch({ type: 'SET_LIGAND_GROUPS', payload: groupsData?.groups || [] });
+      dispatch({ type: 'SET_SELECTED_LIGANDS', payload: [] });
+      setSelectedGroups([]);
+      addNotification(`Group "${groupName}" created with ${selectedLigands.length} ligands.`, NotificationType.SUCCESS);
+      setCreateGroupModalOpen(false);
+    } catch (error) {
+      addNotification(error instanceof Error ? error.message : 'Failed to create ligand group.', NotificationType.ERROR);
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
   };
 
   const handleGroupSelect = (groupName: string, isSelected: boolean) => {

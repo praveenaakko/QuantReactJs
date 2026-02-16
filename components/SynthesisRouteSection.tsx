@@ -6,6 +6,7 @@ import { InitializeSynthesisRunModal } from './InitializeSynthesisRunModal';
 import { NotificationType, SynthesisReport } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import api from '../config/api';
+import { formatDate12h, toEpochMs } from '../utils/dateTime';
 
 const DashboardStatCard: React.FC<{ icon: string; label: string; value: string | number; color: string; }> = ({ icon, label, value, color }) => (
   <div className="bg-white/5 p-6 rounded-lg border border-white/10 flex items-center space-x-4">
@@ -118,18 +119,14 @@ export const SynthesisRouteSection: React.FC = () => {
     const [reportToDelete, setReportToDelete] = useState<SynthesisReport | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const formatDate12h = (value: string) => {
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return value;
-        return date.toLocaleString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: '2-digit',
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-        });
-    };
+    const mapApiSynthesisReport = (apiReport: any): SynthesisReport => ({
+      id: String(apiReport?.id ?? ''),
+      projectName: apiReport?.projectName || apiReport?.project_name || apiReport?.title || `Report ${apiReport?.id ?? ''}`,
+      targetMolecule: apiReport?.targetMolecule || apiReport?.target_molecule || '',
+      generatedOn: apiReport?.generatedOn || apiReport?.generated_on || apiReport?.created_at || '',
+      routes: Number(apiReport?.routes ?? apiReport?.route_count ?? 0),
+      status: (apiReport?.status || 'processing') as SynthesisReport['status'],
+    });
 
     const addNotification = (message: string, type: NotificationType) => {
         const id = Date.now();
@@ -147,7 +144,10 @@ export const SynthesisRouteSection: React.FC = () => {
         dispatch({ type: 'SET_LOADING', payload: true });
         try {
             const data = await api.get('/synthesis/reports');
-            dispatch({ type: 'SET_SYNTHESIS_REPORTS', payload: Array.isArray(data) ? data : [] });
+            dispatch({
+              type: 'SET_SYNTHESIS_REPORTS',
+              payload: (Array.isArray(data) ? data : []).map(mapApiSynthesisReport),
+            });
         } catch (error) {
             console.error(error);
         } finally {
@@ -164,7 +164,7 @@ export const SynthesisRouteSection: React.FC = () => {
                 target_molecule: smiles,
                 starting_material: material
             });
-            dispatch({ type: 'SET_SYNTHESIS_REPORTS', payload: [newReport, ...synthesisReports] });
+            dispatch({ type: 'SET_SYNTHESIS_REPORTS', payload: [mapApiSynthesisReport(newReport), ...synthesisReports] });
             addNotification(`Synthesis run "${title}" initiated. AI engine is calculating retrosynthetic pathways.`, NotificationType.SUCCESS);
         } catch (error) {
             addNotification('Failed to start synthesis run.', NotificationType.ERROR);
@@ -246,8 +246,16 @@ export const SynthesisRouteSection: React.FC = () => {
       );
 
       return [...filtered].sort((a, b) => {
-        const valA = a[sortConfig.key];
-        const valB = b[sortConfig.key];
+        let valA = a[sortConfig.key];
+        let valB = b[sortConfig.key];
+        if (sortConfig.key === 'generatedOn' && typeof valA === 'string' && typeof valB === 'string') {
+          const parsedA = toEpochMs(valA);
+          const parsedB = toEpochMs(valB);
+          if (parsedA != null && parsedB != null) {
+            valA = parsedA as any;
+            valB = parsedB as any;
+          }
+        }
         if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
         if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;

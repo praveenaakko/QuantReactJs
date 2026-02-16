@@ -52,6 +52,29 @@ export const NewGenerationRunModal: React.FC<NewGenerationRunModalProps> = ({ is
     resetForm();
   };
 
+  const handleDownloadSampleCsv = () => {
+    const csvContent = `smiles
+CCO
+CC(=O)O
+C1=CC=CC=C1
+CCN(CC)CC
+CC(C)O
+CN1C=NC2=C1C=O
+CC(C)N
+COC1=CC=CC=C1
+CC(C)C(=O)O
+CNC(=O)C`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'seed_compound_sample.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-[100]" onClick={handleClose}>
       <div className="bg-[#111318] rounded-2xl w-full max-w-xl border border-white/10 overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -99,6 +122,16 @@ export const NewGenerationRunModal: React.FC<NewGenerationRunModalProps> = ({ is
                 onChange={handleFileChange} 
               />
             </div>
+            <div className="mt-3 flex justify-center">
+              <button
+                type="button"
+                onClick={handleDownloadSampleCsv}
+                className="text-[10px] font-bold uppercase tracking-widest text-cyan-400 hover:text-cyan-300 transition-colors flex items-center gap-1"
+              >
+                <i className="ri-download-line text-xs"></i>
+                Download Seed Compound Sample
+              </button>
+            </div>
           </div>
 
           <FormInput
@@ -124,4 +157,3 @@ export const NewGenerationRunModal: React.FC<NewGenerationRunModalProps> = ({ is
     </div>
   );
 };
-

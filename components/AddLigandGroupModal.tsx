@@ -70,6 +70,29 @@ export const AddLigandGroupModal: React.FC<AddLigandGroupModalProps> = ({ isOpen
     resetForm();
   };
 
+  const handleDownloadSampleCsv = () => {
+    const csvContent = `name,smiles,formula
+Aspirin,CC(=O)OC1=CC=CC=C1C(=O)O,C9H8O4
+Caffeine,CN1C=NC2=C1C(=O)N(C(=O)N2C)C,C8H10N4O2
+Paracetamol,CC(=O)NC1=CC=C(O)C=C1,C8H9NO2
+Ibuprofen,CC(C)CC1=CC=C(C=C1)C(C)C(=O)O,C13H18O2
+Ethanol,CCO,C2H6O
+Methanol,CO,CH4O
+Benzene,C1=CC=CC=C1,C6H6
+Acetone,CC(=O)C,C3H6O
+Phenol,C1=CC=C(C=C1)O,C6H6O
+Toluene,CC1=CC=CC=C1,C7H8`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'ligand_group_sample.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100]" onClick={handleClose}>
       <div className="bg-gray-900 rounded-lg p-8 w-full max-w-lg" onClick={e => e.stopPropagation()}>
@@ -101,6 +124,16 @@ export const AddLigandGroupModal: React.FC<AddLigandGroupModalProps> = ({ isOpen
               <span className="font-greycliff text-white/70 mb-1 break-all">{csvFile ? csvFile.name : 'Upload CSV with SMILES'}</span>
               <span className="text-xs text-white/40">{csvFile ? `${(csvFile.size / 1024).toFixed(2)} KB` : '.csv format required'}</span>
               <input ref={fileInputRef} type="file" accept=".csv" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={handleFileChange} />
+            </div>
+            <div className="mt-3 flex justify-center">
+              <button
+                type="button"
+                onClick={handleDownloadSampleCsv}
+                className="text-[10px] font-bold uppercase tracking-widest text-cyan-400 hover:text-cyan-300 transition-colors flex items-center gap-1"
+              >
+                <i className="ri-download-line text-xs"></i>
+                Download Sample CSV
+              </button>
             </div>
           </div>
           <div className="flex justify-end gap-4 mt-8">

@@ -10,6 +10,8 @@ import api from '../config/api';
 import { AddProteinModal } from './AddProteinModal';
 import { AddLigandGroupModal } from './AddLigandGroupModal';
 import { CreateLigandGroupModal } from './CreateLigandGroupModal';
+import { formatDate12h, toEpochMs } from '../utils/dateTime';
+import { ConfirmationModal } from './ConfirmationModal';
 
 interface DockingSectionProps {
   addNotification: (message: string, type: NotificationType) => void;
@@ -61,19 +63,6 @@ const DashboardStatCard: React.FC<{ icon: string; label: string; value: string |
   </div>
 );
 
-const formatDate12h = (value: string) => {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-    });
-};
-
 // Helper Mappers
 const mapApiDockingResultToDockingResult = (apiResult: any): DockingResult => ({
     id: String(apiResult.id),
@@ -90,7 +79,7 @@ const mapApiDockingRunToDockingRun = (apiRun: any, currentUser: any): DockingRun
     proteinName: apiRun.protein_name,
     ligandCount: apiRun.ligand_count,
     dockingType: apiRun.docking_type,
-    createdAt: formatDate12h(apiRun.created_at),
+    createdAt: apiRun.created_at || '',
     createdBy: apiRun.created_by || currentUser?.name || 'Unknown',
     status: apiRun.status as DockingStatus,
     duration: apiRun.duration,
@@ -204,6 +193,9 @@ export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification 
     const [isProteinModalOpen, setIsProteinModalOpen] = useState(false);
     const [isLigandGroupModalOpen, setIsLigandGroupModalOpen] = useState(false);
     const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [runToDelete, setRunToDelete] = useState<DockingRun | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Details View State
     const [selectedRunDetails, setSelectedRunDetails] = useState<DockingRun | null>(null);
@@ -270,11 +262,20 @@ export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification 
     const sortData = <T,>(data: T[], config: SortConfig<T>) => {
         if (!config.key) return data;
         return [...data].sort((a, b) => {
-            const valA = a[config.key!];
-            const valB = b[config.key!];
+            let valA = a[config.key!];
+            let valB = b[config.key!];
             if (valA === valB) return 0;
             if (valA === null || valA === undefined) return 1;
             if (valB === null || valB === undefined) return -1;
+
+            if (typeof valA === 'string' && typeof valB === 'string' && config.key === 'createdAt') {
+                const parsedA = toEpochMs(valA);
+                const parsedB = toEpochMs(valB);
+                if (parsedA != null && parsedB != null) {
+                    valA = parsedA as any;
+                    valB = parsedB as any;
+                }
+            }
 
             const comparison = valA < valB ? -1 : 1;
             return config.direction === 'asc' ? comparison : -comparison;
@@ -362,17 +363,24 @@ export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification 
         }
     };
     
-    const handleDeleteRun = async (runId: string) => {
-        if (!window.confirm('Are you sure?')) return;
-        dispatch({ type: 'SET_LOADING', payload: true });
+    const openDeleteModal = (run: DockingRun) => {
+        setRunToDelete(run);
+        setIsDeleteModalOpen(true);
+    };
+
+    const handleDeleteRun = async () => {
+        if (!runToDelete) return;
+        setIsDeleting(true);
         try {
-            await api.delete(`/docking/runs/${runId}`);
+            await api.delete(`/docking/runs/${runToDelete.id}`);
             addNotification('Run deleted.', NotificationType.SUCCESS);
-            dispatch({type: 'SET_DOCKING_RUNS', payload: dockingRuns.filter(run => run.id !== runId)});
+            dispatch({type: 'SET_DOCKING_RUNS', payload: dockingRuns.filter(run => run.id !== runToDelete.id)});
+            setIsDeleteModalOpen(false);
+            setRunToDelete(null);
         } catch (error) {
             addNotification('Failed to delete run.', NotificationType.ERROR);
         } finally {
-            dispatch({ type: 'SET_LOADING', payload: false });
+            setIsDeleting(false);
         }
     };
 
@@ -820,7 +828,7 @@ export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification 
                             <div><p className="text-white/60">Protein</p><p>{selectedRunDetails.proteinName}</p></div>
                             <div><p className="text-white/60">Ligands</p><p>{selectedRunDetails.ligandCount}</p></div>
                             <div><p className="text-white/60">Created By</p><p>{selectedRunDetails.createdBy}</p></div>
-                            <div><p className="text-white/60">Created At</p><p>{selectedRunDetails.createdAt}</p></div>
+                            <div><p className="text-white/60">Created At</p><p>{selectedRunDetails.createdAt ? formatDate12h(selectedRunDetails.createdAt) : '-'}</p></div>
                         </div>
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -941,13 +949,13 @@ export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification 
                                         <td className="p-3 font-greycliff">{run.proteinName}</td>
                                         <td className="p-3 font-greycliff text-center">{run.ligandCount}</td>
                                         <td className="p-3 font-greycliff capitalize">{run.dockingType}</td>
-                                        <td className="p-3 font-greycliff">{run.createdAt}</td>
+                                        <td className="p-3 font-greycliff">{run.createdAt ? formatDate12h(run.createdAt) : '-'}</td>
                                         <td className="p-3 font-greycliff">{run.createdBy}</td>
                                         <td className="p-3 font-greycliff text-center"><StatusBadge status={run.status} /></td>
                                         <td className="p-3 text-center">
                                             <div className="flex justify-center items-center gap-2">
                                                 <button onClick={() => handleViewDetails(run)} disabled={run.status !== DockingStatus.SUCCESS} className="p-1 text-white/70 hover:text-white disabled:text-white/30 disabled:cursor-not-allowed transition"><i className="ri-eye-line"></i></button>
-                                                <button onClick={() => handleDeleteRun(run.id)} className="p-1 text-red-500/70 hover:text-red-500 transition"><i className="ri-delete-bin-line"></i></button>
+                                                <button onClick={() => openDeleteModal(run)} className="p-1 text-red-500/70 hover:text-red-500 transition"><i className="ri-delete-bin-line"></i></button>
                                             </div>
                                         </td>
                                     </tr>
@@ -960,6 +968,24 @@ export const DockingSection: React.FC<DockingSectionProps> = ({ addNotification 
                     <Pagination currentPage={runsCurrentPage} totalPages={runsTotalPages} onPageChange={setRunsCurrentPage} itemsPerPage={runsItemsPerPage} onItemsPerPageChange={setRunsItemsPerPage} totalItems={filteredRuns.length} />
                 </div>
             </div>
+            <ConfirmationModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => {
+                    if (isDeleting) return;
+                    setIsDeleteModalOpen(false);
+                    setRunToDelete(null);
+                }}
+                onConfirm={handleDeleteRun}
+                title="Delete Docking Run"
+                message={
+                    <p>
+                        Are you sure you want to delete docking run <strong>"{runToDelete?.name}"</strong>?
+                        This action cannot be undone.
+                    </p>
+                }
+                confirmText="Delete"
+                isConfirming={isDeleting}
+            />
         </section>
     );
 };

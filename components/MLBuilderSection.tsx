@@ -8,6 +8,7 @@ import { Pagination } from './Pagination';
 import { useStore } from '../store/store';
 import api from '../config/api';
 import { ConfirmationModal } from './ConfirmationModal';
+import { formatDate12h, toEpochMs } from '../utils/dateTime';
 
 declare const ecStat: any;
 
@@ -47,46 +48,35 @@ interface ModelInfo {
     activityRange: number | null;
 }
 
-const formatDate12h = (value: string) => {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-    });
-};
-
 const mapApiTrainingRunToTrainingRun = (apiRun: any, currentUser: any): TrainingRun => {
     // Normalize taskType to be capitalized to match the component's expected values.
-    const taskType = apiRun.taskType?.toLowerCase() === 'classification' 
+    const taskType = (apiRun.taskType || apiRun.task_type)?.toLowerCase() === 'classification' 
         ? 'Classification' 
         : 'Prediction';
 
     return {
         id: String(apiRun.id),
         name: apiRun.name,
-        datasetName: apiRun.datasetName,
+        datasetName: apiRun.datasetName || apiRun.dataset_name || 'N/A',
         taskType: taskType,
-        createdAt: formatDate12h(apiRun.createdAt),
-        createdBy: apiRun.createdBy || currentUser?.name || 'Unknown',
+        createdAt: apiRun.createdAt || apiRun.created_at || '',
+        createdBy: apiRun.createdBy || apiRun.created_by || currentUser?.name || 'Unknown',
         status: apiRun.status as TrainingStatus,
         duration: apiRun.duration,
-        modelCount: apiRun.modelCount,
+        modelCount: apiRun.modelCount || apiRun.model_count || 0,
     };
 };
 
 const mapApiSavedModelToSavedModel = (apiModel: any): SavedModel => ({
     id: String(apiModel.id),
     name: apiModel.name,
-    modelType: apiModel.model_type,
+    modelType: (apiModel.modelType || apiModel.model_type || 'N/A').trim() || 'N/A',
     description: apiModel.description,
     performance: apiModel.performance,
-    taskType: apiModel.task_type === 'prediction' ? 'Prediction' : 'Classification',
-    date: formatDate12h(apiModel.date),
+    taskType: (String(apiModel.taskType || apiModel.task_type || 'prediction').toLowerCase() === 'classification')
+      ? 'Classification'
+      : 'Prediction',
+    date: apiModel.date || '',
     buildTime: apiModel.build_time,
 });
 
@@ -223,11 +213,20 @@ export const MLBuilderSection: React.FC<MLBuilderSectionProps> = ({ addNotificat
     const sortData = <T,>(data: T[], config: SortConfig<T>) => {
         if (!config.key) return data;
         return [...data].sort((a, b) => {
-            const valA = a[config.key!];
-            const valB = b[config.key!];
+            let valA = a[config.key!];
+            let valB = b[config.key!];
             if (valA === valB) return 0;
             if (valA === null || valA === undefined) return 1;
             if (valB === null || valB === undefined) return -1;
+
+            if (typeof valA === 'string' && typeof valB === 'string' && config.key === 'createdAt') {
+                const parsedA = toEpochMs(valA);
+                const parsedB = toEpochMs(valB);
+                if (parsedA != null && parsedB != null) {
+                    valA = parsedA as any;
+                    valB = parsedB as any;
+                }
+            }
 
             const comparison = valA < valB ? -1 : 1;
             return config.direction === 'asc' ? comparison : -comparison;
@@ -763,7 +762,7 @@ export const MLBuilderSection: React.FC<MLBuilderSectionProps> = ({ addNotificat
                     </button>
                     <div className="bg-white/5 p-8 rounded-lg mb-8">
                         <h2 className="text-3xl font-argent mb-2">Results for "{selectedRunDetails.name}"</h2>
-                        <p className="font-greycliff text-sm text-white/70">Dataset: {selectedRunDetails.datasetName} | Generated: {selectedRunDetails.createdAt}</p>
+                        <p className="font-greycliff text-sm text-white/70">Dataset: {selectedRunDetails.datasetName} | Generated: {selectedRunDetails.createdAt ? formatDate12h(selectedRunDetails.createdAt) : '-'}</p>
                     </div>
 
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
@@ -987,7 +986,7 @@ export const MLBuilderSection: React.FC<MLBuilderSectionProps> = ({ addNotificat
                                         <td className="p-3 font-greycliff text-white">{run.name}</td>
                                         <td className="p-3 font-greycliff truncate" title={run.datasetName}>{run.datasetName}</td>
                                         <td className="p-3 font-greycliff capitalize">{run.taskType}</td>
-                                        <td className="p-3 font-greycliff">{run.createdAt}</td>
+                                        <td className="p-3 font-greycliff">{run.createdAt ? formatDate12h(run.createdAt) : '-'}</td>
                                         <td className="p-3 font-greycliff">{run.createdBy}</td>
                                         <td className="p-3 font-greycliff text-center"><StatusBadge status={run.status} /></td>
                                         <td className="p-3 text-center">
