@@ -11,20 +11,6 @@ Frontend application for QuantCure molecular workflows, built with React + TypeS
 - Synthesis Route
 - Dashboard + User Management (admin)
 
-## Recent Improvements
-
-- Date handling standardized across listing pages:
-  - consistent sorting by timestamp
-  - IST (`Asia/Kolkata`) 12-hour display formatting
-- API mapping hardened for both `camelCase` and `snake_case` fields
-- Global loading state improved to handle concurrent requests safely
-- Docking delete flow migrated from native `window.confirm` to shared confirmation modal
-- Confirmation modal redesigned and refined for better UX
-- CSV utilities improved:
-  - sample CSV downloads added in multiple workflows
-  - molecular library table export added in Compound Generation details
-- Added lightweight test setup and core tests
-
 ## Prerequisites
 
 - Node.js 18+
